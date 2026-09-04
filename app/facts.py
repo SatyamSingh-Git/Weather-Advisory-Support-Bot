@@ -210,3 +210,26 @@ def labelled(facts: dict) -> dict:
         if facts.get(key) is not None
     }
     return table
+
+
+def timeline(payload: dict, window: str) -> dict:
+    """The next 24 hours as a plottable series, plus which of those hours the user asked about.
+
+    Same window arithmetic as build_facts, so the shaded band in the chart is exactly the span the
+    facts were computed over rather than a second, prettier approximation of it.
+    """
+    hourly = payload["hourly"]
+    times = hourly["time"]
+    now_stamp = payload["current"]["time"][:13] + ":00"
+    now_index = times.index(now_stamp) if now_stamp in times else 0
+    span = range(now_index, min(now_index + 24, len(times)))
+    idx, _ = _window_indices(times, now_index, window)
+    marked = set(idx)
+
+    return {
+        "hours": [times[i][11:16] for i in span],
+        "dates": [times[i][:10] for i in span],
+        "precip_mm": [hourly["precipitation"][i] or 0 for i in span],
+        "gust_kmh": [hourly["wind_gusts_10m"][i] or 0 for i in span],
+        "in_window": [i in marked for i in span],
+    }

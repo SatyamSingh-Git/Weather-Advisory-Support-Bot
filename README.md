@@ -6,6 +6,8 @@ the bot says it has no guidance. It never states a weather number it was not giv
 
 <img alt="two-pane console: chat on the left, graph trace and policy inspector on the right" src="docs/screenshot.png" />
 
+<img alt="forecast panels with policy thresholds drawn as reference lines" src="docs/forecast-charts.png" />
+
 *The verdict leads, the readings behind it sit under the answer, and the graph trace runs live on the right. Every condition of every cited policy, evaluated against the real numbers:*
 
 <img alt="policy inspector showing each condition passing or failing with live values" src="docs/policy-inspector.png" />
@@ -52,9 +54,9 @@ The left pane is the chat. The right pane is why it said that:
 
 | Tab | What it shows |
 | --- | --- |
-| **Graph trace** | Every LangGraph node as it executes, live over SSE, with the branch taken and how long it took. |
+| **Graph trace** | The graph drawn as a diagram with **this turn's path lit up** and the branches it did not take left dim, above a live SSE feed of each node as it executes, with timings. |
 | **Policy** | The cited policy and **every condition evaluated against the real numbers** (`gust_kmh = 63.0 >= 50`), plus the policies that were considered and rejected. |
-| **Facts** | The fact table the answer was allowed to quote from, each fact tagged with where it came from. |
+| **Facts** | Two forecast panels for the next 24 hours — cumulative rainfall and wind gusts — each with the window you asked about shaded and the relevant **policy threshold drawn as a labelled reference line**, so you can see when a rule trips. Below them, the fact table the answer was allowed to quote from, each fact tagged with its source. |
 | **Library** | All policies, editable in the browser. Save one and it is live on the next message — and the editor lints it, so a rule that would silently never fire tells you instead. |
 
 **Run injection test** in the header fires the adversarial prompt so you can watch the bot refuse it.

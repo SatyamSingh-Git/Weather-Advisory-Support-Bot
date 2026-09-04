@@ -28,7 +28,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from . import grounding, llm, sops as policy, weather
-from .facts import build_facts
+from .facts import build_facts, timeline
 
 OP_TEXT = {
     "gte": ">=", "gt": ">", "lte": "<=", "lt": "<", "eq": "==", "ne": "!=",
@@ -44,6 +44,7 @@ class BotState(TypedDict, total=False):
     facts: dict
     provenance: dict
     raw_weather: dict
+    series: dict
     grounded: bool
     claims: list
     evaluations: list
@@ -98,6 +99,7 @@ def parse_request(state: BotState) -> dict:
         "failure": None,
         "facts": None,
         "citations": [],
+        "series": None,
         "trace": _step({}, "parse_request", "ok", detail, started),
     }
 
@@ -149,6 +151,7 @@ def derive_facts(state: BotState) -> dict:
         is_outdoor_question="classified from the question",
     )
     return {"facts": facts, "provenance": provenance,
+            "series": timeline(state["raw_weather"], intent["time_window"]),
             "trace": _step(state, "derive_facts", "ok", f"window {facts['window']} on {facts['window_date']}", started)}
 
 
@@ -213,9 +216,13 @@ def deterministic_answer(state: BotState) -> dict:
         )
         if facts.get(key) is not None
     )
+    # The guidance is written as an instruction to whoever answers, so quote it as the policy text
+    # it is rather than replaying it as if it were advice addressed to the user.
     answer = (
-        f"Our policy for this situation is: {primary.title.lower()}. {primary.guidance.strip()} "
-        f"Readings for {facts['location']} in the {facts['window']} window: {readings}."
+        "I could not produce wording for this one that I can stand behind, so here is the policy "
+        f"itself and the readings it matched on, unedited. Our policy “{primary.title}” says: "
+        f"“{primary.guidance.strip()}” Readings for {facts['location']} in the "
+        f"{facts['window']} window: {readings}."
     )
     return {"answer": answer,
             "trace": _step(state, "deterministic_answer", "ok", "composed reply failed the grounding check", started)}
@@ -385,6 +392,7 @@ def _result(state: dict) -> dict:
         "citations": state.get("citations", []),
         "facts": facts,
         "provenance": state.get("provenance", {}),
+        "series": state.get("series") if facts else None,
         "trace": state.get("trace", []),
         "intent": state.get("intent"),
         "place": state.get("place"),
