@@ -628,6 +628,7 @@ function traceShell() {
       <p class="section-title">nodes executed, in order</p>
       <div id="stepList" class="pipeline"></div>
       <div id="traceNote"></div>`;
+    resetReveal();
     drawGraphSkeleton($("#graphBox"));
   }
   return panel;
@@ -645,7 +646,7 @@ function renderTrace(steps, live) {
     </div>`).join("") +
     (live ? `<div class="step-row pending"><div class="step-head"><span class="sname">&hellip;</span></div></div>` : "");
 
-  steps.forEach((step, i) => activateNode(step.node, i ? steps[i - 1].node : null, step.status));
+  steps.forEach((step, i) => queueActivate(step.node, i ? steps[i - 1].node : null, step.status));
 
   $("#traceNote").innerHTML = live ? "" :
     `<p class="section-title">reading this</p><div class="notice">Each node is one step of the graph.
@@ -975,6 +976,36 @@ function attachHover(viz, series) {
 }
 </script>
 <script>
+/* Reveal pacing. Most nodes finish in under a millisecond - matching policies is pure Python, and
+   a cached geocode is instant - so several arrive in the same tick and would light up as one blink.
+   The queue spaces them out so the path can be followed. It paces the animation only: the
+   millisecond figures in the list beside it are the real measured durations, untouched. */
+const REVEAL_MS = 170;
+let revealQueue = [];
+let revealTimer = null;
+const queuedNodes = new Set();
+
+function resetReveal() {
+  revealQueue = [];
+  queuedNodes.clear();
+  clearTimeout(revealTimer);
+  revealTimer = null;
+}
+
+function queueActivate(name, previous, status) {
+  if (queuedNodes.has(name)) return;
+  queuedNodes.add(name);
+  revealQueue.push([name, previous, status]);
+  if (!revealTimer) drainReveal();
+}
+
+function drainReveal() {
+  const next = revealQueue.shift();
+  if (!next) { revealTimer = null; return; }
+  activateNode(...next);
+  revealTimer = setTimeout(drainReveal, REVEAL_MS);
+}
+
 /* The graph itself, with this turn's path lit. Laid out by hand rather than by a force simulation:
    the shape is fixed and meaningful -- a spine of the happy path, with every branch leaving it to
    the right -- so a computed layout would only make it less readable. */
