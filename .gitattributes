@@ -1,0 +1,3 @@
+# Normalise line endings so the repo is identical on Windows, macOS and Linux checkouts.
+* text=auto eol=lf
+*.png binary
