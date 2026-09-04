@@ -27,7 +27,7 @@ static chat page, so there is nothing else to start.
 
 ```
 OPENROUTER_API_KEY=sk-or-v1-...
-OPENROUTER_MODEL=openai/gpt-4o-mini    # any OpenRouter model that supports JSON output
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash   # any OpenRouter model with JSON output
 ```
 
 The key is read only from the environment, `.env` is in `.gitignore`, and no key is in the history.
@@ -226,6 +226,13 @@ resets on restart, which is what the brief asked for.
   localisation. Both are additions to the prompt, not to the model's authority.
 - **The policy editor is unauthenticated.** It is there so a reviewer can add the 11th SOP from the
   browser during the call. On anything real it needs a token; it is a write endpoint on a public URL.
+- **Model choice is a single env var, on purpose.** The default is `deepseek/deepseek-v4-flash`,
+  picked because both calls are narrow — classify into an enum, and paraphrase a fixed guidance
+  string — so a fast cheap model is the right tool, and the constraints that matter are enforced in
+  code either way. Swapping `OPENROUTER_MODEL` changes nothing else. If a weaker model ever returned
+  malformed JSON or drifted off the guidance, `extract_intent` drops out-of-enum values and
+  `verify_grounding` catches invented numbers, so degradation shows up as an honest failure rather
+  than a confident wrong answer.
 - **`comfort_score` is a formula I invented.** It is transparent and lives in one function, but it is
   my judgement encoded as arithmetic. A real policy team should own those weights, not an engineer.
 

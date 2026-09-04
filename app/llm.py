@@ -33,7 +33,7 @@ def _client() -> OpenAI:
 
 
 def _model() -> str:
-    return os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    return os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
 
 
 def _chat(messages, json_mode: bool, max_tokens: int) -> str:

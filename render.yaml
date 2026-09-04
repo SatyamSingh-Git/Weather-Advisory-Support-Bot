@@ -9,6 +9,6 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: OPENROUTER_MODEL
-        value: openai/gpt-4o-mini
+        value: deepseek/deepseek-v4-flash
       - key: PYTHON_VERSION
         value: "3.12.7"

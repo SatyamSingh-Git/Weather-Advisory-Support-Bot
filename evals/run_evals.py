@@ -88,7 +88,7 @@ def write_report(rows: list[dict], path: Path = REPORT) -> Path:
     path.write_text(f"""<!doctype html><html><head><meta charset="utf-8">
 <title>Weather Advisory Bot - eval results</title><style>{STYLE}</style></head><body><div class="wrap">
 <h1>Eval results</h1>
-<div class="sub">{time.strftime('%Y-%m-%d %H:%M')} &middot; model {html.escape(os.getenv('OPENROUTER_MODEL', 'openai/gpt-4o-mini'))}
+<div class="sub">{time.strftime('%Y-%m-%d %H:%M')} &middot; model {html.escape(os.getenv('OPENROUTER_MODEL', 'deepseek/deepseek-v4-flash'))}
 &middot; frozen-payload cases are deterministic, live cases assert invariants rather than values</div>
 <div class="tally">
   <div><b>{tally['pass']}</b>passed</div><div><b>{tally['fail']}</b>failed</div><div><b>{tally['skipped']}</b>skipped</div>
