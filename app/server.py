@@ -1,6 +1,7 @@
 """HTTP surface: chat over SSE, plus a policy editor so an SOP can be added without an IDE."""
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -38,6 +39,56 @@ def _sse(event: str, data) -> str:
 @app.get("/health")
 def health():
     return {"ok": True, "sops": len(policy.load_sops())}
+
+
+@app.get("/api/diagnostics")
+def diagnostics():
+    """Call both upstreams and report exactly what came back.
+
+    A deployed instance fails in ways a laptop never does - a different egress IP, a different
+    resolver, a provider that rate-limits shared hosting. This says which call failed and with what
+    status, without going through the chat to find out.
+    """
+    import time as _t
+
+    import httpx
+
+    from . import weather
+
+    results = []
+    for name, url, params in (
+        ("geocoding", weather.GEOCODE_URL, {"name": "Bhopal", "count": 1}),
+        ("forecast", weather.FORECAST_URL, {
+            "latitude": 23.25, "longitude": 77.4, "current": weather.CURRENT_FIELDS,
+            "hourly": weather.HOURLY_FIELDS, "daily": weather.DAILY_FIELDS,
+            "timezone": "auto", "forecast_days": 2, "wind_speed_unit": "kmh",
+        }),
+        ("forecast_minimal", weather.FORECAST_URL, {
+            "latitude": 23.25, "longitude": 77.4, "current": "temperature_2m",
+        }),
+    ):
+        started = _t.time()
+        entry = {"call": name}
+        try:
+            response = httpx.get(url, params=params, timeout=weather.TIMEOUT, headers=weather.HEADERS)
+            entry["status"] = response.status_code
+            entry["ok"] = response.is_success
+            if not response.is_success:
+                entry["body"] = response.text[:300]
+            else:
+                entry["bytes"] = len(response.content)
+        except Exception as exc:
+            entry["ok"] = False
+            entry["error"] = f"{exc.__class__.__name__}: {exc}"
+        entry["ms"] = int((_t.time() - started) * 1000)
+        results.append(entry)
+
+    return {
+        "model_key_present": bool(os.getenv("OPENROUTER_API_KEY")),
+        "model": os.getenv("OPENROUTER_MODEL", "(default)"),
+        "policies": len(policy.load_sops()),
+        "upstream": results,
+    }
 
 
 @app.post("/api/chat")
