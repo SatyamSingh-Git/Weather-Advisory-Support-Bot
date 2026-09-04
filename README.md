@@ -6,10 +6,15 @@
 </p>
 
 <p align="center">
-  <b><a href="https://140-245-253-170.nip.io">Live demo</a></b>
+  <a href="https://140-245-253-170.nip.io"><b>&#9658;&nbsp; Try it live</b></a>
+  &nbsp;&middot;&nbsp;
+  <a href="#quick-start">Run it locally</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#evals">Evals</a>
 </p>
 
 <p align="center">
+  <a href="https://140-245-253-170.nip.io"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-140--245--253--170.nip.io-3fb950?logo=icloud&logoColor=white" /></a>
   <img alt="Python 3.12" src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" />
   <img alt="LangGraph" src="https://img.shields.io/badge/LangGraph-11%20nodes%20%C2%B7%206%20branches-1C3C3C" />
   <img alt="Policies" src="https://img.shields.io/badge/policies-15%20YAML%20files-4B8BBE" />
@@ -29,6 +34,7 @@
 
 | | |
 | --- | --- |
+| [Live demo](https://140-245-253-170.nip.io) | The deployed instance |
 | [Quick start](#quick-start) | Run it in four commands |
 | [What you can click](#what-you-can-click) | The four inspector tabs |
 | [How it works](#how-it-works) | The graph, node by node |
