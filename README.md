@@ -8,7 +8,7 @@
 <p align="center"><b>click to see</b></p>
 
 <h1 align="center">
-  <a href="https://140-245-253-170.nip.io">&#9658;&nbsp; Live Demo</a>
+  <a href="https://140-245-253-170.nip.io" target="_blank" rel="noopener noreferrer">&#9658;&nbsp; Live Demo</a>
 </h1>
 
 <p align="center">
