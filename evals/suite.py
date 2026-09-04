@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 from app import graph, grounding, llm, weather
 from app.facts import build_facts
-from app.sops import load_sops, match_all, rank
+from app.sops import lint_all, load_sops, match_all, rank
 from evals.fixtures import PLACE, SCENARIOS
 
 load_dotenv()
@@ -71,9 +71,9 @@ def broken_weather():
 
 
 @contextlib.contextmanager
-def lying_composer(text: str):
+def lying_composer(text: str, claims: list | None = None):
     real = llm.compose_answer
-    llm.compose_answer = lambda *a, **k: text
+    llm.compose_answer = lambda *a, **k: (text, claims or [])
     try:
         yield
     finally:
@@ -160,12 +160,15 @@ def case_live_severe() -> Outcome:
     expected = [s.id for s in rank(match_all(facts))]
     agrees = primary_id(result) == (expected[0] if expected else None)
     ok_number, offending = grounded(result)
+    # Any reading may legitimately be the one worth quoting, so check against the whole table
+    # rather than a hand-picked few: a narrower list fails a correct answer.
     quotes_a_real_number = any(
-        str(facts[key]) in result["answer"]
-        for key in ("temp_c", "wind_kmh", "gust_kmh", "precip_prob_pct", "rain_24h_mm", "uv_index")
-        if facts.get(key) is not None
+        str(value) in result["answer"]
+        for value in facts.values()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
     )
-    severe = (facts.get("rain_24h_mm") or 0) >= 64.5 or (facts.get("gust_kmh") or 0) >= 50
+    # "Severe" is whatever the policy set says is severe, not a threshold restated in the test.
+    severe = any(c["severity"] in ("high", "critical") for c in result["citations"])
     passed = agrees and ok_number and quotes_a_real_number
     return Outcome(
         passed,
@@ -301,6 +304,92 @@ def case_session_memory() -> Outcome:
     )
 
 
+def case_mislabelled_number() -> Outcome:
+    """The failure the old check could not see: a real reading reported as a different reading.
+
+    In this payload the wind is 22.0 km/h and the gusts are 38.0 km/h. A reply that calls 38.0 the
+    sustained wind quotes a number that genuinely came from the API, so checking provenance alone
+    passes it. Checking the model's own attribution against the fact it names does not.
+    """
+    lie = "Winds are steady at 38.0 km/h through the afternoon, so plan around that."
+    with frozen("heavy_rain_system"), lying_composer(lie, [{"value": 38.0, "fact": "wind_kmh"}]):
+        result = graph.ask(session("mislabelled"), "Is it safe to cycle in Bhopal right now?")
+    nodes = [step["node"] for step in result["trace"]]
+    caught = "deterministic_answer" in nodes and result["answer"] != lie
+    reason = next((t["detail"] for t in result["trace"] if t["node"] == "verify_grounding"), "")
+    return Outcome(
+        caught,
+        f"38.0 is a real reading (gust_kmh) filed as wind_kmh (22.0); check said: {reason}",
+        {"model_output": lie, "answer": result["answer"]},
+    )
+
+
+def case_policy_lint() -> Outcome:
+    """Static check on the rule set itself, so a policy edit cannot quietly disarm a rule."""
+    problems = lint_all()
+    flat = [f"{sop_id}: {p}" for sop_id, items in problems.items() for p in items]
+    sops = load_sops()
+    categories = {s.category for s in sops}
+    severities = {s.severity for s in sops}
+    enough = len(sops) >= 10 and len(categories) >= 3 and len(severities) >= 3
+    return Outcome(
+        not flat and enough,
+        f"{len(sops)} policies across {len(categories)} categories and {len(severities)} severities; "
+        f"lint problems: {flat or 'none'}",
+        {"categories": sorted(categories), "severities": sorted(severities), "problems": problems},
+    )
+
+
+def case_conflict_override_wins() -> Outcome:
+    """Thunderstorm and an active rain system are both critical. Priority inside override decides."""
+    with frozen("thunderstorm"):
+        result = graph.ask(session("conflict-override"), "Can I go for a run in Bhopal right now?")
+    cited = [c["id"] for c in result["citations"]]
+    matched = [s.id for s in rank(match_all(result["facts"]))]
+    passed = (
+        primary_id(result) == "severe_rain_system"
+        and "thunderstorm_outdoor" in matched
+        and "thunderstorm_outdoor" in cited
+    )
+    return Outcome(
+        passed,
+        f"{len(matched)} policies matched {matched}; led with {primary_id(result)} and still surfaced "
+        f"the others as {cited[1:]}, so the losing risk is visible rather than dropped",
+        {"answer": result["answer"], "citations": result["citations"]},
+    )
+
+
+def case_conflict_same_severity() -> Outcome:
+    """Two 'high' policies apply to a child in extreme heat. The lower vulnerable-group threshold wins."""
+    with frozen("hot_for_children"):
+        result = graph.ask(session("conflict-severity"), "Is it alright to take my 5-year-old out to play in Nagpur now?")
+    matched = [s.id for s in rank(match_all(result["facts"]))]
+    both_apply = {"vulnerable_group_heat", "heat_stress_exertion"} <= set(matched)
+    passed = both_apply and primary_id(result) == "vulnerable_group_heat" and matched[0] == "vulnerable_group_heat"
+    return Outcome(
+        passed,
+        f"matched {matched}; both vulnerable_group_heat and heat_stress_exertion are 'high', and "
+        f"priority resolved it to {primary_id(result)} rather than file order",
+        {"answer": result["answer"], "ranked": matched},
+    )
+
+
+def case_ranking_is_stable() -> Outcome:
+    """Ranking must not depend on the order policies happen to load off disk."""
+    import random
+
+    with frozen("thunderstorm"):
+        facts = graph.ask(session("stable"), "Is it safe to walk to the shops in Bhopal now?")["facts"]
+    baseline = [s.id for s in rank(match_all(facts))]
+    shuffled = []
+    for _ in range(5):
+        pool = load_sops()[:]
+        random.shuffle(pool)
+        shuffled.append([s.id for s in rank(match_all(facts, pool))])
+    passed = all(order == baseline for order in shuffled)
+    return Outcome(passed, f"5 shuffled loads all ranked {baseline}", {"baseline": baseline})
+
+
 CASES = [
     Case("clear_sop_wind", "A policy clearly applies: strong wind, cycling question",
          "That the wind policy is the one cited, and that the reply only quotes numbers from the payload.",
@@ -348,4 +437,26 @@ CASES = [
          "turn two answers about Bhopal in the evening window without a restated location, and the "
          "forced-forgetful run recovers location and activity from session state.",
          case_session_memory),
+    Case("policy_lint", "The rule set itself is coherent",
+         "That no policy references an unknown fact or depends on one it has not declared, either of "
+         "which would make it silently never fire, and that the set still meets the brief's shape.",
+         "no lint problems, and at least 10 policies across 3+ categories and 3+ severities.",
+         case_policy_lint, needs_key=False),
+    Case("conflict_override", "Two critical policies apply at once",
+         "That an override policy leads and the other risk is still surfaced rather than dropped.",
+         "severe_rain_system leads; thunderstorm_outdoor still appears as a secondary citation.",
+         case_conflict_override_wins),
+    Case("conflict_same_severity", "Two 'high' policies apply to the same question",
+         "That an equal-severity tie is resolved by declared priority, not by file order.",
+         "vulnerable_group_heat leads over heat_stress_exertion for a five-year-old.",
+         case_conflict_same_severity),
+    Case("mislabelled_number", "Adversarial: a real number reported as the wrong reading",
+         "Whether grounding catches a correctly-sourced number given the wrong description, which "
+         "provenance checking alone cannot see.",
+         "the graph rejects the reply and falls back to the deterministic answer.",
+         case_mislabelled_number),
+    Case("ranking_stable", "Ranking does not depend on load order",
+         "That conflict resolution is a total order over the policy set, not an artefact of the filesystem.",
+         "five shuffled loads produce an identical ranking.",
+         case_ranking_is_stable),
 ]

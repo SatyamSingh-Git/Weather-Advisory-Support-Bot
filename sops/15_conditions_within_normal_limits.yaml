@@ -3,7 +3,7 @@ title: Conditions within normal limits
 category: cross_category
 severity: info
 priority: 0
-requires_facts: [apparent_temp_c, wind_kmh, precip_prob_pct]
+requires_facts: [apparent_temp_c, wind_kmh, precip_prob_pct, uv_index]
 when:
   - {fact: activity_category, op: includes_any, value: [outdoor_exercise, travel_commute, outdoor_work]}
   - {fact: apparent_temp_c, op: between, value: [5, 32]}

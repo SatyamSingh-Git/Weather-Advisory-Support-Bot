@@ -45,6 +45,7 @@ class BotState(TypedDict, total=False):
     provenance: dict
     raw_weather: dict
     grounded: bool
+    claims: list
     evaluations: list
     primary: object
     secondary: list
@@ -171,20 +172,25 @@ def match_policies(state: BotState) -> dict:
 def compose(state: BotState) -> dict:
     started = time.time()
     try:
-        answer = llm.compose_answer(
+        answer, claims = llm.compose_answer(
             state["question"], state["facts"], state["primary"], state["secondary"], state["messages"][:-1]
         )
     except llm.LLMUnavailable as exc:
         return {"failure": {"stage": "compose", "reason": str(exc)},
                 "trace": _step(state, "compose_answer", "error", str(exc), started)}
-    return {"answer": answer, "trace": _step(state, "compose_answer", "ok", f"{len(answer)} chars", started)}
+    return {"answer": answer, "claims": claims,
+            "trace": _step(state, "compose_answer", "ok",
+                           f"{len(answer)} chars, {len(claims)} reading(s) attributed", started)}
 
 
 def verify_grounding(state: BotState) -> dict:
     started = time.time()
     cited = [state["primary"], *state["secondary"]]
-    ok, ungrounded = grounding.check(state["answer"], state["facts"], cited)
-    detail = "every number traces to the API or the policy" if ok else f"ungrounded: {ungrounded}"
+    ok, ungrounded = grounding.check(state["answer"], state["facts"], cited, state.get("claims"))
+    detail = (
+        f"{len(state.get('claims') or [])} attribution(s) check out against the API"
+        if ok else "; ".join(ungrounded)
+    )
     return {"grounded": ok, "trace": _step(state, "verify_grounding", "ok" if ok else "branch", detail, started)}
 
 

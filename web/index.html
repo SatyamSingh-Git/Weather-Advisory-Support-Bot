@@ -580,8 +580,13 @@ async function saveSop() {
     notice.textContent = "Rejected: " + (data.detail || "unknown error");
     return;
   }
-  notice.className = "notice good";
-  notice.textContent = `Saved. ${data.count} policies are live as of the next message.`;
+  if (data.warnings && data.warnings.length) {
+    notice.className = "notice bad";
+    notice.textContent = `Saved (${data.count} policies live), but check this: ` + data.warnings.join(" | ");
+  } else {
+    notice.className = "notice good";
+    notice.textContent = `Saved. ${data.count} policies are live as of the next message.`;
+  }
   loadLibrary();
 }
 

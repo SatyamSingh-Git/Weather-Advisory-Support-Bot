@@ -63,6 +63,7 @@ def list_sops():
     loaded = {s.source_file: s for s in policy.load_sops()}
     return {
         "count": len(loaded),
+        "lint": policy.lint_all(list(loaded.values())),
         "sops": [
             {
                 "filename": name,
@@ -101,7 +102,14 @@ def write_sop(payload: SopWrite):
         raise HTTPException(400, f"id {parsed['id']!r} is already used by {existing[parsed['id']]}")
 
     target.write_text(payload.body, encoding="utf-8")
-    return {"ok": True, "filename": payload.filename, "count": len(policy.load_sops())}
+    saved = next(s for s in policy.load_sops() if s.id == parsed["id"])
+    return {
+        "ok": True,
+        "filename": payload.filename,
+        "count": len(policy.load_sops()),
+        # Valid but suspect: the policy is live, and these are the ways it could quietly never fire.
+        "warnings": policy.lint(saved),
+    }
 
 
 @app.delete("/api/sops/{filename}")

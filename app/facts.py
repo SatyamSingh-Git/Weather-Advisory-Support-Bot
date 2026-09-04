@@ -186,7 +186,15 @@ FACT_MEANINGS = {
     "precip_prob_max_24h_pct": ("%", "highest chance of rain in the next 24 hours"),
     "daily_precip_sum_mm": ("mm", "rainfall for the whole calendar day, midnight to midnight"),
     "comfort_score": ("/100", "derived pleasantness score, not a safety measure"),
+    "thunderstorm": ("", "whether a thunderstorm code appears in the window"),
 }
+
+# Facts about the question rather than the world. The model fills these in, against a closed enum.
+QUESTION_FACTS = {"activity_category", "audience", "is_outdoor_question"}
+
+# The complete vocabulary a policy may reference. Anything outside it is a typo, and a typo in a
+# condition is silent: the leaf just evaluates false and the policy never fires.
+POLICY_FACTS = set(FACT_MEANINGS) | QUESTION_FACTS | {"local_hour", "is_day"}
 
 
 def labelled(facts: dict) -> dict:

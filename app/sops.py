@@ -138,3 +138,52 @@ def rank(results: list[dict]) -> list[Sop]:
         key=lambda s: (s.override, s.severity_rank, s.priority, len(s.when)),
         reverse=True,
     )
+
+
+LIST_OPS = {"in", "includes_any"}
+
+
+def _walk(nodes, anded=True):
+    """Yield (leaf, is_hard_requirement). A leaf under any_of is optional; an ANDed leaf is not."""
+    for node in nodes:
+        if "any_of" in node:
+            yield from _walk(node["any_of"], False)
+        elif "all_of" in node:
+            yield from _walk(node["all_of"], anded)
+        else:
+            yield node, anded
+
+
+def lint(sop: Sop) -> list[str]:
+    """Problems a policy author would otherwise only discover as a rule that never fires.
+
+    A missing fact makes a condition false rather than unevaluable, so a typo, or an ANDed fact the
+    API sometimes omits, silently removes the policy from the rule set instead of raising.
+    """
+    from .facts import POLICY_FACTS, QUESTION_FACTS
+
+    problems = []
+    for leaf, hard in _walk(sop.when):
+        fact, op, value = leaf["fact"], leaf["op"], leaf["value"]
+        if fact not in POLICY_FACTS:
+            problems.append(f"unknown fact {fact!r}; a condition on it can never be true")
+            continue
+        if hard and fact not in sop.requires_facts and fact not in QUESTION_FACTS:
+            problems.append(
+                f"{fact!r} is required for this policy to match but is not in requires_facts, so a "
+                f"missing reading would silently stop it firing instead of reporting it"
+            )
+        if op == "between" and not (isinstance(value, list) and len(value) == 2):
+            problems.append(f"'between' on {fact!r} needs a two-item [low, high] list")
+        if op in LIST_OPS and not isinstance(value, list):
+            problems.append(f"{op!r} on {fact!r} needs a list of values")
+    for fact in sop.requires_facts:
+        if fact not in POLICY_FACTS:
+            problems.append(f"requires_facts names unknown fact {fact!r}")
+    if len(sop.guidance.strip()) < 40:
+        problems.append("guidance is too short to be actionable advice")
+    return problems
+
+
+def lint_all(sops: list[Sop] | None = None) -> dict[str, list[str]]:
+    return {s.id: problems for s in (sops if sops is not None else load_sops()) if (problems := lint(s))}
