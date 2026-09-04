@@ -6,6 +6,10 @@
 </p>
 
 <p align="center">
+  <b><a href="https://140-245-253-170.nip.io">Live demo</a></b>
+</p>
+
+<p align="center">
   <img alt="Python 3.12" src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" />
   <img alt="LangGraph" src="https://img.shields.io/badge/LangGraph-11%20nodes%20%C2%B7%206%20branches-1C3C3C" />
   <img alt="Policies" src="https://img.shields.io/badge/policies-15%20YAML%20files-4B8BBE" />
@@ -427,6 +431,8 @@ breaking &mdash; worth knowing before trusting a green suite.
 connect this repo**, accept the blueprint, and set `OPENROUTER_API_KEY` in the dashboard (never in
 the repo). `/health` is the health-check path and returns the number of policies loaded.
 
+The live instance is at **<https://140-245-253-170.nip.io>**, on an Oracle Cloud Always Free VM.
+
 ### Oracle Cloud Always Free (what the live URL runs on)
 
 `deploy/oracle-setup.sh` provisions a fresh Always Free VM end to end &mdash; Python, the service
@@ -438,6 +444,10 @@ curl -fsSL https://raw.githubusercontent.com/SatyamSingh-Git/Weather-Advisory-Su
 
 Then open ports 80 and 443 in the OCI console (VCN &rarr; Subnet &rarr; Security List &rarr; Ingress,
 `0.0.0.0/0` TCP). The script prints the HTTPS URL when it finishes.
+
+The service runs as its own unprivileged system user under `systemd` with `ProtectSystem=strict`,
+`ProtectHome=true` and a memory cap, bound to `127.0.0.1` with Caddy as the only public listener.
+That is worth doing anywhere, and worth doing carefully when a box has anything else on it.
 
 I moved off free PaaS hosting for one specific reason, covered below: **Always Free gives the
 instance its own public IPv4**, so Open-Meteo's per-IP quota belongs to this app rather than being
