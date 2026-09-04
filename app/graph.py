@@ -302,6 +302,7 @@ def finalize(state: BotState) -> dict:
         {
             "id": sop.id,
             "title": sop.title,
+            "verdict": sop.verdict,
             "category": sop.category,
             "severity": sop.severity,
             "source_file": sop.source_file,

@@ -1,5 +1,6 @@
 id: thunderstorm_outdoor
 title: Thunderstorm in the requested window
+verdict: Stay indoors
 category: cross_category
 severity: critical
 override: true

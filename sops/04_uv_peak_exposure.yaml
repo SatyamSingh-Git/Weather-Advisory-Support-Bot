@@ -1,5 +1,6 @@
 id: uv_peak_exposure
 title: Very high UV during exposure
+verdict: Not without sun cover
 category: outdoor_exercise
 severity: high
 priority: 15

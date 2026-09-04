@@ -1,5 +1,6 @@
 id: moderate_uv_reminder
 title: Moderate UV reminder
+verdict: Fine, wear sunscreen
 category: outdoor_exercise
 severity: info
 priority: 1

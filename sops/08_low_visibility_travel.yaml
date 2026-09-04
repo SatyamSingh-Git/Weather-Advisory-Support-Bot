@@ -1,5 +1,6 @@
 id: low_visibility_travel
 title: Low visibility on the road
+verdict: Delay travel until it lifts
 category: travel_commute
 severity: high
 priority: 22

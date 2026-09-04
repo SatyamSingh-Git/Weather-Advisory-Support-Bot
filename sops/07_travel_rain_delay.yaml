@@ -1,5 +1,6 @@
 id: travel_rain_delay
 title: Rain-related travel disruption
+verdict: Go, but allow extra time
 category: travel_commute
 severity: moderate
 priority: 12

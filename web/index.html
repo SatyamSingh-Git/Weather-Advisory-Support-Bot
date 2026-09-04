@@ -303,6 +303,41 @@ dialog::backdrop { background: #000c; }
 .gedge.fail { stroke: var(--critical); stroke-width: 2; }
 .glegend { font-family: var(--mono); font-size: 9.5px; fill: var(--dim); }
 </style>
+<style>
+/* The decision, said once, at the top. It comes from the policy's `verdict` field, never the model. */
+.verdict { display: block; margin-bottom: 12px; }
+.verdict-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.verdict-call {
+  font-size: 19px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; margin: 7px 0 3px;
+}
+.verdict-call.critical { color: #ff9d95; }
+.verdict-call.high     { color: #ffb787; }
+.verdict-call.moderate { color: #ecc766; }
+.verdict-call.low      { color: #86e08a; }
+.verdict-call.info     { color: #90c8ff; }
+.verdict-call.none     { color: var(--muted); }
+.verdict-source { font-size: 12px; color: var(--dim); }
+.verdict-source b { color: var(--muted); font-weight: 400; }
+</style>
+<style>
+.gedge { transition: stroke 200ms; }
+.gnode rect { transition: fill 220ms, stroke 220ms; }
+.gnode.pop rect { animation: nodePop 420ms cubic-bezier(.34,1.4,.5,1); }
+@keyframes nodePop {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  35%  { transform: scale(1.03); filter: brightness(1.5); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+.gnode.pop rect { transform-box: fill-box; transform-origin: center; }
+.spark { fill: #7cc4ff; filter: drop-shadow(0 0 4px #4da3ff); }
+.spark.fail { fill: #ff9d95; filter: drop-shadow(0 0 4px #f85149); }
+.glegend { transition: fill 200ms; }
+@media (prefers-reduced-motion: reduce) {
+  .gnode.pop rect { animation: none; }
+  .gedge { transition: none !important; }
+  .spark { display: none; }
+}
+</style>
 </head>
 <body>
 <div class="shell">
@@ -422,8 +457,9 @@ function addPendingTurn() {
     <div class="turn">
       <div class="reply none">
         <div class="verdict">
-          <span class="sev-pill running">working</span>
-          <span class="verdict-title">reading the question</span>
+          <div class="verdict-row"><span class="sev-pill running">working</span></div>
+          <div class="verdict-call none">Working on it</div>
+          <div class="verdict-source verdict-title">reading the question</div>
         </div>
         <div class="text"><span class="cursor"></span></div>
         <div class="readings"></div>
@@ -463,6 +499,7 @@ async function send(text) {
   addUserTurn(text);
   const turn = addPendingTurn();
   const steps = [];
+  $("#tab-trace").innerHTML = "";
   renderTrace(steps, true);
   switchTab("trace");
 
@@ -537,14 +574,20 @@ function paintResult(turn, result) {
   reply.className = "reply " + severity;
 
   const label = primary ? severity : result.failure ? "no data" : "no policy";
-  const title = primary
-    ? `<b>${esc(primary.title)}</b> &middot; ${esc(primary.id)}`
+  const call = primary
+    ? primary.verdict || primary.title
     : result.failure
-      ? `the graph stopped at the <b>${esc(result.failure.stage)}</b> stage &mdash; no forecast was given`
-      : "no policy in our set covers this question";
+      ? "No answer — I could not get the data"
+      : "No guidance — our policies do not cover this";
+  const source = primary
+    ? `from policy <b>${esc(primary.id)}</b> &middot; ${esc(primary.title)}`
+    : result.failure
+      ? `the graph stopped at the <b>${esc(result.failure.stage)}</b> stage, so no forecast was given`
+      : "nothing in the policy set matched, so no advice is attached";
   reply.querySelector(".verdict").innerHTML =
-    `<span class="sev-pill ${severity === "none" ? "none" : severity}">${esc(label)}</span>` +
-    `<span class="verdict-title">${title}</span>`;
+    `<div class="verdict-row"><span class="sev-pill ${severity === "none" ? "none" : severity}">${esc(label)}</span></div>` +
+    `<div class="verdict-call ${severity}">${esc(call)}</div>` +
+    `<div class="verdict-source">${source}</div>`;
 
   typeOut(reply.querySelector(".text"), result.answer);
   renderReadings(reply.querySelector(".readings"), result.facts);
@@ -569,24 +612,36 @@ function paintResult(turn, result) {
   scrollDown();
 }
 
-function renderTrace(steps, live) {
+function traceShell() {
   const panel = $("#tab-trace");
-  const rows = steps.map((step) => `
+  if (!panel.querySelector("#graphBox")) {
+    panel.innerHTML = `<p class="section-title">the graph, and the path this turn takes</p>
+      <div id="graphBox"></div>
+      <p class="section-title">nodes executed, in order</p>
+      <div id="stepList" class="pipeline"></div>
+      <div id="traceNote"></div>`;
+    drawGraphSkeleton($("#graphBox"));
+  }
+  return panel;
+}
+
+function renderTrace(steps, live) {
+  traceShell();
+  $("#stepList").innerHTML = steps.map((step) => `
     <div class="step-row ${step.status === "error" ? "error" : step.status === "branch" ? "branch" : ""}">
       <div class="step-head">
         <span class="sname">${esc(step.node)}</span>
         <span class="sms">${step.ms == null ? "" : step.ms + " ms"}</span>
       </div>
       <div class="sdetail">${esc(step.detail ?? "")}</div>
-    </div>`).join("");
-  const pending = live
-    ? `<div class="step-row pending"><div class="step-head"><span class="sname">&hellip;</span></div></div>`
-    : "";
-  panel.innerHTML =
-    `<p class="section-title">nodes executed, in order</p><div class="pipeline">${rows}${pending}</div>` +
-    (live ? "" : `<p class="section-title">reading this</p><div class="notice">Each node is one step of the graph.
-      An amber node is a branch the graph chose; a red node is the honest-failure path.</div>`);
-  if (!live) renderGraphDiagram(panel, steps);
+    </div>`).join("") +
+    (live ? `<div class="step-row pending"><div class="step-head"><span class="sname">&hellip;</span></div></div>` : "");
+
+  steps.forEach((step, i) => activateNode(step.node, i ? steps[i - 1].node : null, step.status));
+
+  $("#traceNote").innerHTML = live ? "" :
+    `<p class="section-title">reading this</p><div class="notice">Each node is one step of the graph.
+     An amber node is a branch the graph chose; a red node is the honest-failure path.</div>`;
 }
 
 function conditionHtml(condition) {
@@ -955,34 +1010,61 @@ function edgePath(from, to) {
   return `M${sx},${sy}C${sx + 18},${sy} ${tx - 18},${ty} ${tx},${ty}`;
 }
 
-function renderGraphDiagram(container, trace) {
-  const taken = trace.map((step) => step.node);
-  const visited = new Set(taken);
-  const failed = trace.some((step) => step.status === "error");
-  const edgeTaken = new Set(taken.slice(0, -1).map((node, i) => `${node}>${taken[i + 1]}`));
-
-  const edges = G_EDGES.map(([from, to]) => {
-    const on = edgeTaken.has(`${from}>${to}`);
-    const isFailure = on && (FAILURE_NODES.has(to) || FAILURE_NODES.has(from));
-    return `<path class="gedge ${isFailure ? "fail" : on ? "on" : ""}" d="${edgePath(from, to)}" />`;
-  }).join("");
-
-  const nodes = Object.entries(G_NODES).map(([name, [x, y]]) => {
-    const on = visited.has(name);
-    const cls = on ? (FAILURE_NODES.has(name) ? "fail" : "on") : "";
-    return `<g class="gnode ${cls}">
+function drawGraphSkeleton(container) {
+  const edges = G_EDGES.map(([from, to]) =>
+    `<path class="gedge" data-edge="${from}>${to}" d="${edgePath(from, to)}" />`).join("");
+  const nodes = Object.entries(G_NODES).map(([name, [x, y]]) => `
+    <g class="gnode" data-node="${name}">
       <rect x="${x}" y="${y}" width="${G_W}" height="${G_H}" rx="5" />
-      <text x="${x + 9}" y="${y + 13.5}">${name}</text></g>`;
-  }).join("");
-
-  container.insertAdjacentHTML("afterbegin", `
-    <p class="section-title">the graph, and the path this turn took</p>
-    <svg viewBox="0 -4 346 340" role="img" aria-label="LangGraph pipeline with the executed path highlighted"
-         style="display:block;width:100%;margin-bottom:6px">
-      ${edges}${nodes}
-      <text class="glegend" x="6" y="332">${taken.length} of ${Object.keys(G_NODES).length} nodes ran${failed ? " · honest-failure path" : ""}</text>
-    </svg>`);
+      <text x="${x + 9}" y="${y + 13.5}">${name}</text>
+    </g>`).join("");
+  container.innerHTML = `
+    <svg viewBox="0 -4 346 344" role="img" aria-label="LangGraph pipeline with the executed path highlighted"
+         style="display:block;width:100%;margin-bottom:4px">
+      <g class="sparks"></g>${edges}${nodes}
+      <text class="glegend" x="6" y="336">waiting</text>
+    </svg>`;
+  container.dataset.lit = "";
 }
+
+/* Light one node and draw the edge that reached it. The stream sends nodes as they finish, so this
+   animates the run rather than replaying a canned sequence afterwards. */
+function activateNode(name, previous, status) {
+  const box = $("#graphBox");
+  if (!box || box.dataset.lit.includes(`|${name}`)) return;
+  box.dataset.lit += `|${name}`;
+
+  const node = box.querySelector(`[data-node="${name}"]`);
+  if (!node) return;
+  const failed = status === "error" || FAILURE_NODES.has(name);
+  node.classList.add(failed ? "fail" : "on", "pop");
+
+  const edge = previous && box.querySelector(`[data-edge="${previous}>${name}"]`);
+  if (edge) {
+    const length = edge.getTotalLength();
+    edge.classList.add(failed ? "fail" : "on");
+    edge.style.strokeDasharray = length;
+    edge.style.strokeDashoffset = length;
+    edge.getBoundingClientRect();
+    edge.style.transition = "stroke-dashoffset 380ms cubic-bezier(.4,.1,.3,1)";
+    edge.style.strokeDashoffset = "0";
+
+    const spark = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    spark.setAttribute("r", "3.2");
+    spark.setAttribute("class", "spark" + (failed ? " fail" : ""));
+    spark.innerHTML = `<animateMotion dur="0.38s" fill="freeze" path="${edge.getAttribute("d")}" />`;
+    box.querySelector(".sparks").append(spark);
+    setTimeout(() => spark.remove(), 420);
+  }
+
+  const lit = box.dataset.lit.split("|").filter(Boolean).length;
+  const legend = box.querySelector(".glegend");
+  const done = name === "finalize";
+  legend.textContent = done
+    ? `${lit} of ${Object.keys(G_NODES).length} nodes ran` + (box.querySelector(".gnode.fail") ? " · honest-failure path" : "")
+    : `running … ${lit} node${lit === 1 ? "" : "s"}`;
+}
+
 </script>
 </body>
 </html>

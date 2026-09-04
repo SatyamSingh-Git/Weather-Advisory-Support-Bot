@@ -26,6 +26,9 @@ class Sop:
     severity: str
     guidance: str
     when: list
+    # The decision itself, in the policy author's words. The model may phrase the explanation but
+    # never the call, so this is data like every other part of a rule.
+    verdict: str = ""
     requires_facts: list = field(default_factory=list)
     priority: int = 0
     override: bool = False
@@ -182,6 +185,10 @@ def lint(sop: Sop) -> list[str]:
             problems.append(f"requires_facts names unknown fact {fact!r}")
     if len(sop.guidance.strip()) < 40:
         problems.append("guidance is too short to be actionable advice")
+    if not sop.verdict.strip():
+        problems.append("no verdict, so the user gets an explanation with no decision attached")
+    elif len(sop.verdict) > 40:
+        problems.append("verdict should be a short decision, not a sentence")
     return problems
 
 

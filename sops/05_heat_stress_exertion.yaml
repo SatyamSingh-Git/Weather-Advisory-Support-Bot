@@ -1,5 +1,6 @@
 id: heat_stress_exertion
 title: Heat stress during physical exertion
+verdict: Move it to a cooler hour
 category: outdoor_exercise
 severity: high
 priority: 18

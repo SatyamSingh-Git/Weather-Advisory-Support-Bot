@@ -1,5 +1,6 @@
 id: vulnerable_group_heat
 title: Heat exposure for children, elderly or unwell
+verdict: Keep them indoors for now
 category: vulnerable_groups
 severity: high
 priority: 25

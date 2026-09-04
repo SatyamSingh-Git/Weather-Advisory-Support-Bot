@@ -54,7 +54,7 @@ The left pane is the chat. The right pane is why it said that:
 
 | Tab | What it shows |
 | --- | --- |
-| **Graph trace** | The graph drawn as a diagram with **this turn's path lit up** and the branches it did not take left dim, above a live SSE feed of each node as it executes, with timings. |
+| **Graph trace** | The graph drawn as a diagram that **lights up as the run happens** — each node and the edge that reached it animate in as the SSE stream reports them, branches not taken stay dim — above the same nodes as a list with timings. |
 | **Policy** | The cited policy and **every condition evaluated against the real numbers** (`gust_kmh = 63.0 >= 50`), plus the policies that were considered and rejected. |
 | **Facts** | Two forecast panels for the next 24 hours — cumulative rainfall and wind gusts — each with the window you asked about shaded and the relevant **policy threshold drawn as a labelled reference line**, so you can see when a rule trips. Below them, the fact table the answer was allowed to quote from, each fact tagged with its source. |
 | **Library** | All policies, editable in the browser. Save one and it is live on the next message — and the editor lints it, so a rule that would silently never fire tells you instead. |
@@ -127,6 +127,7 @@ lets the rule engine stay fixed while the rules move.
 ```yaml
 id: high_wind_two_wheeler
 title: Strong wind for cycling and two-wheelers
+verdict: Not safe on two wheels     # the decision, in the policy author's words
 category: outdoor_exercise
 severity: high            # info | low | moderate | high | critical
 priority: 20              # tiebreak inside a severity band
@@ -139,6 +140,11 @@ when:
 guidance: >
   Treat this wind as a safety risk, not a comfort issue...
 ```
+
+`verdict` is the decision itself, and it matters that it lives here. The reply leads with it in
+large type, so the call a user acts on is written by whoever owns the policy — the model phrases the
+explanation underneath and never the verdict. `lint` rejects a policy that has no verdict, or one
+padded out into a sentence.
 
 `when` is an AND-list; `any_of` and `all_of` nest inside it. Ten operators
 (`gte gt lte lt eq ne in includes_any between is_true`) cover every rule I have needed, and the

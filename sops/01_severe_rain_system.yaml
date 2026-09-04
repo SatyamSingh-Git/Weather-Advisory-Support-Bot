@@ -1,5 +1,6 @@
 id: severe_rain_system
 title: Active heavy-rainfall system over the location
+verdict: Postpone outdoor plans
 category: cross_category
 severity: critical
 override: true
