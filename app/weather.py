@@ -1,36 +1,68 @@
 """Open-Meteo access. This module is the only place weather numbers enter the system."""
 
+import time
+
 import httpx
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
+# Only what facts.py actually reads. Open-Meteo weights its rate limit by variables x days, and a
+# deployed instance shares an egress IP with every other tenant, so an unused field is not free.
 CURRENT_FIELDS = (
-    "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,"
-    "weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,uv_index,is_day"
+    "temperature_2m,apparent_temperature,relative_humidity_2m,"
+    "wind_speed_10m,wind_gusts_10m,uv_index,is_day"
 )
 HOURLY_FIELDS = (
     "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,"
     "precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,uv_index,visibility"
 )
-DAILY_FIELDS = (
-    "precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,uv_index_max,weather_code"
-)
+DAILY_FIELDS = "precipitation_sum"
 
-TIMEOUT = 10.0
+TIMEOUT = 12.0
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+HEADERS = {"User-Agent": "weather-advisory-bot (github.com/SatyamSingh-Git/Weather-Advisory-Support-Bot)"}
 
 
 class WeatherUnavailable(Exception):
     """We could not obtain real data. The graph turns this into an honest failure, never a guess."""
 
 
-def _search(name: str) -> list:
+def _describe(exc: httpx.HTTPStatusError) -> str:
+    """Open-Meteo answers errors with {"error": true, "reason": "..."} - report what it said."""
+    response = exc.response
     try:
-        r = httpx.get(GEOCODE_URL, params={"name": name, "count": 10, "language": "en"}, timeout=TIMEOUT)
-        r.raise_for_status()
-        return r.json().get("results") or []
-    except (httpx.HTTPError, ValueError) as exc:
-        raise WeatherUnavailable(f"geocoding service unreachable ({exc.__class__.__name__})") from exc
+        reason = response.json().get("reason")
+    except ValueError:
+        reason = (response.text or "").strip()[:160]
+    return f"HTTP {response.status_code}" + (f", {reason}" if reason else "")
+
+
+def _get(url: str, params: dict) -> dict:
+    """One request, retried once on a rate limit or a transient upstream error.
+
+    Shared hosting sits behind shared egress IPs, so a free-tier rate limit is a thing that
+    happens to a deployed instance and never to a laptop. Worth one retry before failing.
+    """
+    for attempt in (1, 2):
+        try:
+            response = httpx.get(url, params=params, timeout=TIMEOUT, headers=HEADERS)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in RETRY_STATUSES and attempt == 1:
+                time.sleep(1.5)
+                continue
+            raise WeatherUnavailable(f"weather service said {_describe(exc)}") from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            if attempt == 1:
+                time.sleep(0.8)
+                continue
+            raise WeatherUnavailable(f"weather service unreachable ({exc.__class__.__name__})") from exc
+    raise WeatherUnavailable("weather service unreachable")
+
+def _search(name: str) -> list:
+    return _get(GEOCODE_URL, {"name": name, "count": 10, "language": "en"}).get("results") or []
 
 
 def _attempts(name: str):
@@ -104,16 +136,10 @@ def fetch_forecast(latitude: float, longitude: float) -> dict:
         "hourly": HOURLY_FIELDS,
         "daily": DAILY_FIELDS,
         "timezone": "auto",
-        "forecast_days": 3,
+        "forecast_days": 2,
         "wind_speed_unit": "kmh",
     }
-    try:
-        r = httpx.get(FORECAST_URL, params=params, timeout=TIMEOUT)
-        r.raise_for_status()
-        payload = r.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        raise WeatherUnavailable(f"weather service unreachable ({exc.__class__.__name__})") from exc
-
+    payload = _get(FORECAST_URL, params)
     if not payload.get("current") or not payload.get("hourly", {}).get("time"):
         raise WeatherUnavailable("weather service returned metadata with no values")
     return payload
