@@ -427,7 +427,28 @@ breaking &mdash; worth knowing before trusting a green suite.
 connect this repo**, accept the blueprint, and set `OPENROUTER_API_KEY` in the dashboard (never in
 the repo). `/health` is the health-check path and returns the number of policies loaded.
 
-Two things about the hosted instance that are not true locally:
+### The shared-IP rate limit, and what it forced
+
+The first deploy failed on every question with `HTTP 429, Daily API request limit exceeded`. Not our
+usage &mdash; Open-Meteo's free tier meters **per IP per day**, and a free-tier host puts the
+instance behind an egress IP shared with other tenants who had already spent the quota. It works
+from a laptop and fails in production, which is the most annoying shape a bug can have.
+
+Two changes, both of which the system should have had anyway:
+
+- **Cache.** A forecast does not change between two questions asked a minute apart. Forecasts are
+  cached 15 minutes per rounded coordinate; geocoding results are cached for the life of the process,
+  because a place does not move. Most of the calls were redundant.
+- **Degrade to a real reading, never to a guess.** If the API refuses and we hold a reading less than
+  three hours old, the bot answers from it **and says how old it is** &mdash; a badge on the reply and
+  a note in the trace. A twenty-minute-old reading we actually took is data; inventing one is not.
+  Past that limit it takes the honest-failure branch as before.
+
+The first commit toward this only improved the error message &mdash; `HTTPStatusError` became
+`weather service said HTTP 429, Daily API request limit exceeded` &mdash; which is what identified the
+cause. `/api/diagnostics` reports both upstreams' status codes for the same reason.
+
+Two other things about the hosted instance that are not true locally:
 
 - **The free tier sleeps.** After ~15 minutes idle it spins down, and the next request takes about a
   minute while it wakes. A first request that seems to hang is almost always this, not the graph.

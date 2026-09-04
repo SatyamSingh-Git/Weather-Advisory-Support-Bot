@@ -23,6 +23,15 @@ TIMEOUT = 12.0
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 HEADERS = {"User-Agent": "weather-advisory-bot (github.com/SatyamSingh-Git/Weather-Advisory-Support-Bot)"}
 
+# Open-Meteo's free tier meters per IP per day, and shared hosting shares that IP with strangers.
+# A forecast does not change between two questions asked a minute apart, so caching is both the
+# obvious efficiency and the thing that keeps a demo alive on somebody else's exhausted quota.
+FRESH_SECONDS = 15 * 60
+STALE_LIMIT_SECONDS = 3 * 60 * 60
+
+_forecast_cache: dict[tuple, tuple[float, dict]] = {}
+_geocode_cache: dict[str, list] = {}
+
 
 class WeatherUnavailable(Exception):
     """We could not obtain real data. The graph turns this into an honest failure, never a guess."""
@@ -62,7 +71,11 @@ def _get(url: str, params: dict) -> dict:
     raise WeatherUnavailable("weather service unreachable")
 
 def _search(name: str) -> list:
-    return _get(GEOCODE_URL, {"name": name, "count": 10, "language": "en"}).get("results") or []
+    """Cached for the life of the process: a place does not move."""
+    key = name.strip().casefold()
+    if key not in _geocode_cache:
+        _geocode_cache[key] = _get(GEOCODE_URL, {"name": name, "count": 10, "language": "en"}).get("results") or []
+    return _geocode_cache[key]
 
 
 def _attempts(name: str):
@@ -139,7 +152,28 @@ def fetch_forecast(latitude: float, longitude: float) -> dict:
         "forecast_days": 2,
         "wind_speed_unit": "kmh",
     }
-    payload = _get(FORECAST_URL, params)
+    key = (round(latitude, 2), round(longitude, 2))
+    cached = _forecast_cache.get(key)
+    if cached and time.time() - cached[0] < FRESH_SECONDS:
+        return _with_age(cached)
+
+    try:
+        payload = _get(FORECAST_URL, params)
+    except WeatherUnavailable:
+        # A reading we actually took twenty minutes ago is still a real reading, and saying so with
+        # its timestamp is honest. Inventing one would not be. Past the stale limit we fail instead.
+        if cached and time.time() - cached[0] < STALE_LIMIT_SECONDS:
+            return _with_age(cached)
+        raise
+
     if not payload.get("current") or not payload.get("hourly", {}).get("time"):
         raise WeatherUnavailable("weather service returned metadata with no values")
+    _forecast_cache[key] = (time.time(), payload)
+    return _with_age(_forecast_cache[key])
+
+
+def _with_age(entry: tuple[float, dict]) -> dict:
+    """Stamp how old the reading is, so everything downstream can say so rather than imply it is now."""
+    fetched_at, payload = entry
+    payload["_age_seconds"] = int(time.time() - fetched_at)
     return payload

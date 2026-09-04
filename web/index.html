@@ -605,6 +605,10 @@ function paintResult(turn, result) {
   });
   if (result.facts) {
     meta.append(el(`<span class="tag">${esc(result.facts.location)} &middot; ${esc(result.facts.window)} ${esc(result.facts.window_date)}</span>`));
+    // an older reading is still a real reading, but the user is entitled to know it is not live
+    if (result.reading_age_seconds > 60) {
+      meta.append(el(`<span class="tag sev moderate">reading ${Math.round(result.reading_age_seconds / 60)} min old</span>`));
+    }
   }
   const why = el(`<span class="tag link">why did it say that?</span>`);
   why.onclick = () => switchTab("policy");

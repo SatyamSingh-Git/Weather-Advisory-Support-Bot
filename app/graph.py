@@ -46,6 +46,7 @@ class BotState(TypedDict, total=False):
     raw_weather: dict
     series: dict
     grounded: bool
+    reading_age_seconds: int
     claims: list
     evaluations: list
     primary: object
@@ -131,8 +132,12 @@ def fetch_weather(state: BotState) -> dict:
     except weather.WeatherUnavailable as exc:
         return {"failure": {"stage": "weather", "reason": str(exc)},
                 "trace": _step(state, "fetch_weather", "error", str(exc), started)}
-    return {"raw_weather": payload,
-            "trace": _step(state, "fetch_weather", "ok", f"open-meteo, {payload['current']['time']} local", started)}
+    age = payload.get("_age_seconds", 0)
+    detail = f"open-meteo, {payload['current']['time']} local"
+    if age > 60:
+        detail += f" (cached reading, {age // 60} min old)"
+    return {"raw_weather": payload, "reading_age_seconds": age,
+            "trace": _step(state, "fetch_weather", "ok", detail, started)}
 
 
 def derive_facts(state: BotState) -> dict:
@@ -394,6 +399,7 @@ def _result(state: dict) -> dict:
         "facts": facts,
         "provenance": state.get("provenance", {}),
         "series": state.get("series") if facts else None,
+        "reading_age_seconds": state.get("reading_age_seconds", 0) if facts else None,
         "trace": state.get("trace", []),
         "intent": state.get("intent"),
         "place": state.get("place"),
