@@ -83,7 +83,16 @@ def diagnostics():
         entry["ms"] = int((_t.time() - started) * 1000)
         results.append(entry)
 
+    egress = None
+    try:
+        egress = httpx.get("https://api.ipify.org", timeout=6.0).text.strip()
+    except Exception:
+        pass
+
     return {
+        # Open-Meteo meters per IP per day, so on shared hosting this is the number that decides
+        # whether the quota is spent. A restart can land the instance on a different one.
+        "egress_ip": egress,
         "model_key_present": bool(os.getenv("OPENROUTER_API_KEY")),
         "model": os.getenv("OPENROUTER_MODEL", "(default)"),
         "policies": len(policy.load_sops()),
@@ -192,3 +201,22 @@ def index():
 
 
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+
+@app.on_event("startup")
+def warm_cache():
+    """Fetch the demo cities once at boot, so the cache holds real readings from the outset.
+
+    On shared hosting the upstream quota can be spent by neighbours at any point in the day. A
+    forecast taken at startup keeps the app answering from real data for the cache window even if
+    later calls are refused, and costs three requests. Failures here are ignored on purpose: a cold
+    cache is the normal case and the graph already handles it honestly.
+    """
+    from . import weather
+
+    for city in ("Bhopal", "Chennai", "Pune"):
+        try:
+            place = weather.geocode(city)
+            weather.fetch_forecast(place["latitude"], place["longitude"])
+        except Exception:
+            pass
