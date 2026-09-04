@@ -6,7 +6,7 @@ the bot says it has no guidance. It never states a weather number it was not giv
 
 <img alt="two-pane console: chat on the left, graph trace and policy inspector on the right" src="docs/screenshot.png" />
 
-*Every condition of every policy, evaluated against the real numbers:*
+*The verdict leads, the readings behind it sit under the answer, and the graph trace runs live on the right. Every condition of every cited policy, evaluated against the real numbers:*
 
 <img alt="policy inspector showing each condition passing or failing with live values" src="docs/policy-inspector.png" />
 
