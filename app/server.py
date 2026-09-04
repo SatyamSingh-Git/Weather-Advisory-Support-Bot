@@ -205,18 +205,22 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.on_event("startup")
 def warm_cache():
-    """Fetch the demo cities once at boot, so the cache holds real readings from the outset.
+    """Prefetch the demo cities in the background so the cache holds real readings from the outset.
 
-    On shared hosting the upstream quota can be spent by neighbours at any point in the day. A
-    forecast taken at startup keeps the app answering from real data for the cache window even if
-    later calls are refused, and costs three requests. Failures here are ignored on purpose: a cold
-    cache is the normal case and the graph already handles it honestly.
+    On a thread, not inline: this is six network calls, and a restart should not leave the service
+    refusing connections while it does optional work. Failures are ignored on purpose - a cold cache
+    is the normal case and the graph already handles it honestly.
     """
+    import threading
+
     from . import weather
 
-    for city in ("Bhopal", "Chennai", "Pune"):
-        try:
-            place = weather.geocode(city)
-            weather.fetch_forecast(place["latitude"], place["longitude"])
-        except Exception:
-            pass
+    def prefetch():
+        for city in ("Bhopal", "Chennai", "Pune"):
+            try:
+                place = weather.geocode(city)
+                weather.fetch_forecast(place["latitude"], place["longitude"])
+            except Exception:
+                pass
+
+    threading.Thread(target=prefetch, daemon=True, name="cache-warm").start()
