@@ -243,18 +243,61 @@ def case_fabricated_number() -> Outcome:
     )
 
 
+@contextlib.contextmanager
+def forgetful_extractor():
+    """A model that ignores the history we hand it, to exercise our own carry-forward."""
+    real = llm.extract_intent
+
+    def extract(message, history):
+        intent = real(message, history)
+        return {**intent, "location": None, "activity_category": []}
+
+    llm.extract_intent = extract
+    try:
+        yield
+    finally:
+        llm.extract_intent = real
+
+
 def case_session_memory() -> Outcome:
+    """Two mechanisms carry a session forward, and the user is entitled to either one working.
+
+    The history goes into the extraction prompt, so a capable model resolves "this evening" against
+    the previous turn by itself. When it does not, parse_request fills the gaps from session state.
+    This checks the outcome first, then forces the fallback path so it cannot rot unnoticed.
+    """
     thread = session("memory")
     with frozen("strong_wind"):
-        first = graph.ask(thread, "Is it safe to cycle to work in Bhopal today?")
+        graph.ask(thread, "Is it safe to cycle to work in Bhopal today?")
         second = graph.ask(thread, "What about this evening instead?")
+
     intent = second["intent"]
-    carried = intent.get("location_from_session") is True
-    passed = carried and intent["time_window"] == "evening" and second["facts"]["window"] == "evening"
+    answered_in_context = (
+        second["place"]["name"] == "Bhopal"
+        and intent["time_window"] == "evening"
+        and second["facts"]["window"] == "evening"
+        and bool(intent["activity_category"])
+    )
+    mechanism = "our session carry-forward" if intent.get("location_from_session") else "history in the extraction prompt"
+
+    fallback = session("memory-fallback")
+    with frozen("strong_wind"):
+        graph.ask(fallback, "Is it safe to cycle to work in Bhopal today?")
+        with forgetful_extractor():
+            third = graph.ask(fallback, "What about this evening instead?")
+    recovered = (
+        third["intent"].get("location_from_session") is True
+        and third["intent"].get("activity_from_session") is True
+        and third["place"]["name"] == "Bhopal"
+        and third["facts"]["window"] == "evening"
+    )
+
     return Outcome(
-        passed,
-        f"turn 2 named no location and carried {intent['location']!r} from the session; window={intent['time_window']}",
-        {"first": first["answer"], "second": second["answer"]},
+        answered_in_context and recovered,
+        f"turn 2 answered about {second['place']['name']} in the {second['facts']['window']} window "
+        f"without the user restating either, resolved via {mechanism}; "
+        f"with the model forced to forget, session state recovered both: {recovered}",
+        {"turn2": second["answer"], "fallback_intent": third["intent"]},
     )
 
 
@@ -300,7 +343,9 @@ CASES = [
          "the graph detects it, routes to deterministic_answer, and the reply the user sees is grounded.",
          case_fabricated_number),
     Case("session_memory", "Follow-up turn with no location and a new time window",
-         "That session state carries the location forward and that the follow-up shifts the forecast window.",
-         "turn two resolves Bhopal from session state and builds facts for the evening window.",
+         "That a follow-up is answered in context, by either carry mechanism, and that our own "
+         "fallback still works when the model ignores the history.",
+         "turn two answers about Bhopal in the evening window without a restated location, and the "
+         "forced-forgetful run recovers location and activity from session state.",
          case_session_memory),
 ]

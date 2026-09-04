@@ -166,3 +166,39 @@ def build_facts(payload: dict, window: str) -> tuple[dict, dict]:
         }
     )
     return facts, provenance
+
+
+# Sent to the composer alongside each value. The model quoted a real number under the wrong label
+# once (today's rainfall total described as "next 24 hours"), which the grounding check cannot
+# catch, since it verifies where a number came from and not what it was called.
+FACT_MEANINGS = {
+    "temp_c": ("C", "air temperature"),
+    "apparent_temp_c": ("C", "feels-like temperature"),
+    "wind_kmh": ("km/h", "sustained wind speed"),
+    "gust_kmh": ("km/h", "peak wind gust"),
+    "uv_index": ("", "UV index"),
+    "humidity_pct": ("%", "relative humidity"),
+    "precip_prob_pct": ("%", "highest chance of rain within the window the user asked about"),
+    "precip_mm": ("mm", "rainfall within the window the user asked about"),
+    "visibility_m": ("m", "lowest visibility within the window the user asked about"),
+    "rain_24h_mm": ("mm", "total rainfall forecast over the next 24 hours from now"),
+    "gust_max_24h_kmh": ("km/h", "strongest gust forecast in the next 24 hours"),
+    "precip_prob_max_24h_pct": ("%", "highest chance of rain in the next 24 hours"),
+    "daily_precip_sum_mm": ("mm", "rainfall for the whole calendar day, midnight to midnight"),
+    "comfort_score": ("/100", "derived pleasantness score, not a safety measure"),
+}
+
+
+def labelled(facts: dict) -> dict:
+    """The fact table as the composer sees it: value, unit and what the number actually means."""
+    table = {
+        key: {"value": facts[key], "unit": unit, "means": means}
+        for key, (unit, means) in FACT_MEANINGS.items()
+        if facts.get(key) is not None
+    }
+    table["context"] = {
+        key: facts[key]
+        for key in ("location", "window", "window_date", "observed_at", "thunderstorm", "local_hour")
+        if facts.get(key) is not None
+    }
+    return table

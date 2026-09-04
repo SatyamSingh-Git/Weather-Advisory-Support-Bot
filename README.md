@@ -6,6 +6,10 @@ the bot says it has no guidance. It never states a weather number it was not giv
 
 <img alt="two-pane console: chat on the left, graph trace and policy inspector on the right" src="docs/screenshot.png" />
 
+*Every condition of every policy, evaluated against the real numbers:*
+
+<img alt="policy inspector showing each condition passing or failing with live values" src="docs/policy-inspector.png" />
+
 ---
 
 ## Quick start
@@ -280,3 +284,36 @@ important risk, so I wrote both. Injection is loud and a reviewer will try it. A
 merely *wrong* is quiet: it looks exactly like a correct answer, it is the failure mode most likely
 to survive to production, and it is the one that gets someone hurt. Case 9 tests a prompt; case 10
 tests a branch of the graph.
+
+### Results
+
+**11/11 passing** on the run recorded in `evals/report.html` (2026-09-04, `deepseek/deepseek-v4-flash`,
+against a live heavy-rain system over Madhya Pradesh — Bhopal was reporting 71.0 mm for the calendar
+day and 42.6 mm over the next 24 hours).
+
+It was not 11/11 first time, and the failures are worth recording because they were all real:
+
+| First run | What was actually wrong | Fix |
+| --- | --- | --- |
+| `live_severe`, `paraphrase_children`, `api_down` failed at an LLM stage with "empty response" | OpenRouter load-balances one model id across many providers (Venice, NextBit, CoreWeave, Baidu, SiliconFlow…). This is a reasoning model, reasoning tokens are billed against `max_tokens`, and a provider that reasons at length returns **empty content**. | Disable reasoning at the call boundary, raise the budget, and require providers that actually support JSON mode. Per-call latency went from ~50s to ~4s as a side effect. |
+| `session_memory` failed with the right answer | Providers return `"this evening"`, `"tonight"`, `"right now"` for the same window. Anything off-enum silently fell back to `now`, so the bot answered about the wrong part of the day. | Normalise the window at the boundary instead of rejecting it. |
+| `session_memory` still failed | **My test was wrong.** It asserted `location_from_session`, an implementation detail. The model reads the history we pass it and resolved "Bhopal" itself, so our carry-forward never fired — the user got the right answer by the other route. | Assert the outcome (answered in context, no restating), then force the model to forget so the fallback path is still covered. |
+
+Two of those were defects in the system and one was a defect in the test. I would rather say which
+was which than present a suite that was always green.
+
+**Known limits, stated plainly:**
+
+- **Provider variance is real.** The same model id can be served by a different backend on every
+  call, so eval timings move and a provider change could reintroduce a JSON quirk. The frozen-payload
+  layer is unaffected; the live cases could flake. Pinning `provider.order` would fix it and costs
+  availability, which is a trade I would want the team to make, not me.
+- **Grounding verifies provenance, not attachment.** The check proves a number came from the API. It
+  cannot prove the number was described correctly — the model once quoted the calendar-day rainfall
+  total as a 24-hour figure. Both numbers were real; the label was wrong. Mitigated by handing the
+  composer a self-describing fact table (`value`, `unit`, `means`), not eliminated. A stricter
+  version would have the model emit `{fact_key, value}` pairs and render the sentence itself.
+- **`live_severe` reports whether conditions were severe, it does not require it.** It asserts the
+  cited policy matches what the engine derives from the same live facts. On a calm day it still
+  passes and says so in the notes; the frozen `heavy_rain_system` payload keeps the critical path
+  under test permanently.

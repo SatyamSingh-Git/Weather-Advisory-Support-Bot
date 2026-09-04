@@ -102,5 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--offline", action="store_true", help="skip cases that need the network")
     args = parser.parse_args()
     results = run(args.offline)
-    print(f"\n{sum(1 for r in results if r['status'] == 'pass')}/{len(results)} passed")
+    counts = {s: sum(1 for r in results if r["status"] == s) for s in ("pass", "fail", "skipped")}
+    print(f"\n{counts['pass']} passed, {counts['fail']} failed, {counts['skipped']} skipped "
+          f"(of {len(results)} cases)")
     print("report:", write_report(results))

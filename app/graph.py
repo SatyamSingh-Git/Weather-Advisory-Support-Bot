@@ -218,15 +218,32 @@ def deterministic_answer(state: BotState) -> dict:
 def no_policy_answer(state: BotState) -> dict:
     started = time.time()
     facts = state.get("facts")
-    answer = (
-        "I don't have a policy covering that, so I'd rather not guess. I can only give advice our "
-        "team has written down as a standing rule, and none of them apply to this question."
-    )
     if facts:
-        answer += (
-            f" For what it's worth, the readings I pulled for {facts['location']} are temperature "
-            f"{facts['temp_c']} C, wind {facts['wind_kmh']} km/h and a {facts['precip_prob_pct']}% "
-            f"chance of rain, but no policy attaches advice to that combination."
+        readings = ", ".join(
+            f"{label} {facts[key]}{unit}"
+            for key, label, unit in (
+                ("temp_c", "temperature", " C"),
+                ("apparent_temp_c", "feels like", " C"),
+                ("wind_kmh", "wind", " km/h"),
+                ("gust_kmh", "gusts", " km/h"),
+                ("precip_prob_pct", "chance of rain", "%"),
+                ("rain_24h_mm", "rain over the next 24 hours", " mm"),
+                ("uv_index", "UV index", ""),
+                ("humidity_pct", "humidity", "%"),
+            )
+            if facts.get(key) is not None
+        )
+        answer = (
+            f"Here is what Open-Meteo returned for {facts['location']} "
+            f"({facts['window']}, {facts['window_date']}): {readings}. "
+            "Those are the readings as they came back. None of our policies attach advice to this "
+            "question, so I am not going to add a recommendation of my own -- ask me about a "
+            "specific plan and I will tell you which policy applies."
+        )
+    else:
+        answer = (
+            "I don't have a policy covering that, so I'd rather not guess. I can only give advice our "
+            "team has written down as a standing rule, and none of them apply to this question."
         )
     return {"answer": answer, "primary": None, "secondary": [],
             "trace": _step(state, "no_policy_answer", "ok", "answered without a policy citation", started)}
@@ -290,9 +307,14 @@ def finalize(state: BotState) -> dict:
 
 
 def route_after_parse(state: BotState) -> str:
+    """A question about the weather still gets real readings, even when no policy can apply to it.
+
+    Withholding advice we have not written down is the requirement. Withholding data the API would
+    have given us is not: reporting a number is not advising on it.
+    """
     if state.get("failure"):
         return "honest_failure"
-    if not state["intent"]["is_outdoor_question"]:
+    if not state["intent"]["is_weather_question"]:
         return "no_policy_answer"
     return "resolve_location"
 

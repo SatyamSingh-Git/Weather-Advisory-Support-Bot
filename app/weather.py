@@ -24,30 +24,74 @@ class WeatherUnavailable(Exception):
     """We could not obtain real data. The graph turns this into an honest failure, never a guess."""
 
 
-def geocode(name: str) -> dict:
-    """Resolve a place name to coordinates. Raises WeatherUnavailable if nothing usable comes back."""
+def _search(name: str) -> list:
     try:
-        r = httpx.get(GEOCODE_URL, params={"name": name, "count": 5, "language": "en"}, timeout=TIMEOUT)
+        r = httpx.get(GEOCODE_URL, params={"name": name, "count": 10, "language": "en"}, timeout=TIMEOUT)
         r.raise_for_status()
-        payload = r.json()
+        return r.json().get("results") or []
     except (httpx.HTTPError, ValueError) as exc:
         raise WeatherUnavailable(f"geocoding service unreachable ({exc.__class__.__name__})") from exc
 
-    results = payload.get("results") or []
-    if not results:
+
+def _attempts(name: str):
+    """The geocoder matches a single place name, so "Alipur, Delhi" finds nothing.
+
+    Fall back to the leading part as the name and keep the rest as a region hint, which is also
+    what disambiguates same-named places rather than silently taking the first result.
+    """
+    yield name, None
+    if "," in name:
+        head, _, tail = name.partition(",")
+        yield head.strip(), tail.strip()
+    words = name.replace(",", " ").split()
+    if len(words) > 1:
+        yield " ".join(words[:-1]), words[-1]
+
+
+def _pick(results: list, hint: str | None) -> dict:
+    """Choose among same-named places using the rest of what the user typed.
+
+    "Alipur, Delhi" matches on region. "Bandra, Mumbai" cannot, because Mumbai is a city and the
+    results only carry a state: so resolve the hint too and take the nearest candidate to it.
+    Distance is squared degrees, which is crude but only ever used to rank candidates.
+    """
+    if not hint:
+        return results[0]
+
+    needle = hint.casefold()
+    for result in results:
+        region = f"{result.get('admin1') or ''} {result.get('country') or ''}".casefold()
+        if needle in region or (result.get("admin1") and result["admin1"].casefold() in needle):
+            return result
+
+    anchors = _search(hint)
+    if anchors:
+        lat, lon = anchors[0]["latitude"], anchors[0]["longitude"]
+        return min(results, key=lambda r: (r["latitude"] - lat) ** 2 + (r["longitude"] - lon) ** 2)
+    return results[0]
+
+
+def geocode(name: str) -> dict:
+    """Resolve a place name to coordinates. Raises WeatherUnavailable if nothing usable comes back."""
+    for query, hint in _attempts(name):
+        results = _search(query)
+        if results:
+            break
+    else:
         raise WeatherUnavailable(f"no location found matching {name!r}")
 
-    top = results[0]
+    top = _pick(results, hint)
     return {
         "name": top["name"],
         "admin1": top.get("admin1"),
         "country": top.get("country"),
         "latitude": top["latitude"],
         "longitude": top["longitude"],
+        "matched_on": query if query != name else None,
         "alternatives": [
             f"{r['name']}, {r.get('admin1') or ''} {r.get('country') or ''}".strip(" ,")
-            for r in results[1:4]
-        ],
+            for r in results if r is not top
+        ][:3],
     }
 
 
