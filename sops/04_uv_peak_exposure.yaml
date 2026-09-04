@@ -1,0 +1,14 @@
+id: uv_peak_exposure
+title: Very high UV during exposure
+category: outdoor_exercise
+severity: high
+priority: 15
+requires_facts: [uv_index]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_exercise, leisure_social, outdoor_work]}
+  - {fact: uv_index, op: gte, value: 8}
+guidance: >
+  Advise against unprotected outdoor exertion in this window. Recommend rescheduling to before
+  10am or after 5pm, and if that is not possible, broad-spectrum SPF 30 or higher reapplied
+  every two hours, a hat, sunglasses and covered shoulders. Skin at this UV level can burn in
+  under 20 minutes.

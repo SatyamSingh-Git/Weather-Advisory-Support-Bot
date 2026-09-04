@@ -1,0 +1,14 @@
+id: leisure_conditions_marginal
+title: Mixed conditions for casual outdoor plans
+category: leisure_social
+severity: low
+priority: 4
+requires_facts: [comfort_score]
+when:
+  - {fact: activity_category, op: includes_any, value: [leisure_social]}
+  - {fact: comfort_score, op: between, value: [40, 71.9]}
+guidance: >
+  Conditions are workable but not comfortable, and there is no single number that makes this a
+  yes or a no. Give the user the specific factors pulling the score down and let them decide.
+  Suggest a shorter plan, a backup indoor option, or a different part of the day if a better
+  window exists. Be honest that this is a judgement call rather than implying a safety verdict.

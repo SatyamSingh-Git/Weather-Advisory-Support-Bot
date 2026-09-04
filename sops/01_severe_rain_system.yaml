@@ -1,0 +1,23 @@
+id: severe_rain_system
+title: Active heavy-rainfall system over the location
+category: cross_category
+severity: critical
+override: true
+priority: 100
+requires_facts: [rain_24h_mm]
+when:
+  - {fact: is_outdoor_question, op: is_true, value: true}
+  - any_of:
+      - {fact: rain_24h_mm, op: gte, value: 64.5}
+      - {fact: daily_precip_sum_mm, op: gte, value: 64.5}
+      - all_of:
+          - {fact: precip_prob_max_24h_pct, op: gte, value: 80}
+          - {fact: rain_24h_mm, op: gte, value: 35}
+guidance: >
+  A heavy-rainfall system is active over this location: the forecast crosses the IMD
+  heavy-rain threshold of 64.5 mm in 24 hours. Lead with the rain system itself before any
+  activity-specific advice. Treat every outdoor plan as high risk regardless of category:
+  advise postponing non-essential outdoor activity, warn about waterlogging, reduced
+  visibility and localised flooding on roads and underpasses, and tell the user to check the
+  IMD bulletin or the local district advisory before leaving. Do not soften this because the
+  temperature or wind reads normal.

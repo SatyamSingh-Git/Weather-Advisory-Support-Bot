@@ -1,0 +1,14 @@
+id: low_visibility_travel
+title: Low visibility on the road
+category: travel_commute
+severity: high
+priority: 22
+requires_facts: [visibility_m]
+when:
+  - {fact: activity_category, op: includes_any, value: [travel_commute, outdoor_exercise]}
+  - {fact: visibility_m, op: lte, value: 1000}
+guidance: >
+  Visibility is low enough to be a driving and riding hazard. Advise delaying departure until it
+  lifts, and if travel is unavoidable, low-beam headlights rather than high beam, reduced speed,
+  no overtaking, and hazard lights only when stopped. Pedestrians and cyclists should wear
+  something reflective.

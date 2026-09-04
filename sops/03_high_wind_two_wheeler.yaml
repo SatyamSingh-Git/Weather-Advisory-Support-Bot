@@ -1,0 +1,17 @@
+id: high_wind_two_wheeler
+title: Strong wind for cycling and two-wheelers
+category: outdoor_exercise
+severity: high
+priority: 20
+requires_facts: [wind_kmh]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_exercise, travel_commute]}
+  - any_of:
+      - {fact: wind_kmh, op: gt, value: 40}
+      - {fact: gust_kmh, op: gte, value: 50}
+guidance: >
+  Treat this wind as a safety risk, not a comfort issue. Gusts at this strength can push a
+  cyclist or two-wheeler rider across a lane, and are worse on bridges, flyovers and open
+  stretches. Advise postponing the ride, or taking a four-wheeled or public transport
+  alternative. If the trip cannot be avoided, advise reduced speed, both hands on the bars,
+  and extra distance from heavy vehicles.

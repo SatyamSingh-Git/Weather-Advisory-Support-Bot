@@ -1,0 +1,14 @@
+id: vulnerable_group_heat
+title: Heat exposure for children, elderly or unwell
+category: vulnerable_groups
+severity: high
+priority: 25
+requires_facts: [apparent_temp_c]
+when:
+  - {fact: audience, op: includes_any, value: [children, elderly, expectant_or_unwell]}
+  - {fact: apparent_temp_c, op: gte, value: 33}
+guidance: >
+  The threshold for this group is lower than for a healthy adult, and this window is above it.
+  Advise keeping the outing short and shaded, going before 10am or after 5pm instead, carrying
+  water, and watching for flushed skin, unusual tiredness or refusal to drink. For infants and
+  the elderly, indoors is the safer default in this window.

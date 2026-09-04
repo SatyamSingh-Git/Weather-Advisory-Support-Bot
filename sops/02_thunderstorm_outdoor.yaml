@@ -1,0 +1,15 @@
+id: thunderstorm_outdoor
+title: Thunderstorm in the requested window
+category: cross_category
+severity: critical
+override: true
+priority: 90
+requires_facts: [thunderstorm]
+when:
+  - {fact: is_outdoor_question, op: is_true, value: true}
+  - {fact: thunderstorm, op: is_true, value: true}
+guidance: >
+  Thunderstorms are forecast in this window. Advise against being outdoors, and specifically
+  against open ground, water, rooftops, and sheltering under trees. Recommend staying indoors
+  or in a hard-topped vehicle until 30 minutes after the last thunder. This applies to every
+  outdoor activity category, including short trips.

@@ -1,0 +1,17 @@
+id: conditions_within_normal_limits
+title: Conditions within normal limits
+category: cross_category
+severity: info
+priority: 0
+requires_facts: [apparent_temp_c, wind_kmh, precip_prob_pct]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_exercise, travel_commute, outdoor_work]}
+  - {fact: apparent_temp_c, op: between, value: [5, 32]}
+  - {fact: wind_kmh, op: lte, value: 30}
+  - {fact: precip_prob_pct, op: lte, value: 40}
+  - {fact: uv_index, op: lte, value: 5.9}
+guidance: >
+  Nothing in our policy set is triggered by these conditions. Tell the user the plan looks fine
+  on the weather, give them the actual readings so they can judge for themselves, and say
+  explicitly that this is a clear reading rather than an absence of information. Do not add
+  precautions we have not written down.

@@ -1,0 +1,14 @@
+id: cold_exposure
+title: Cold exposure outdoors
+category: cross_category
+severity: moderate
+priority: 10
+requires_facts: [apparent_temp_c]
+when:
+  - {fact: is_outdoor_question, op: is_true, value: true}
+  - {fact: apparent_temp_c, op: lte, value: 5}
+guidance: >
+  Conditions are cold enough for the activity to be uncomfortable and, over a long exposure,
+  risky. Advise layering with a windproof outer shell, covering extremities, limiting continuous
+  time outdoors, and taking extra care if the user is going out before sunrise. Flag that wind
+  makes the effective temperature lower than the reading.

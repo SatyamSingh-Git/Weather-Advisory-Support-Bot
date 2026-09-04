@@ -1,0 +1,15 @@
+id: heat_stress_exertion
+title: Heat stress during physical exertion
+category: outdoor_exercise
+severity: high
+priority: 18
+requires_facts: [apparent_temp_c]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_exercise, outdoor_work]}
+  - {fact: apparent_temp_c, op: gte, value: 38}
+guidance: >
+  The feels-like temperature is in the heat-stress range for sustained physical effort. Advise
+  moving the activity to early morning or after sunset, cutting intensity and duration, drinking
+  water before and during rather than only after, and stopping at the first sign of dizziness,
+  cramping or a headache. Note that humidity means sweat evaporates poorly, so the body cools
+  more slowly than the air temperature suggests.

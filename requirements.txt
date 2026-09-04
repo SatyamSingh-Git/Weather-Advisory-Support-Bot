@@ -1,0 +1,9 @@
+langgraph==0.3.29
+langgraph-checkpoint==2.0.24
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+openai==2.15.0
+pyyaml==6.0.2
+python-dotenv==1.1.0
+pytest==9.0.2

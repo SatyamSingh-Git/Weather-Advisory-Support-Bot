@@ -1,0 +1,13 @@
+id: outdoor_work_hydration
+title: Sustained outdoor work in warm conditions
+category: outdoor_work
+severity: moderate
+priority: 6
+requires_facts: [apparent_temp_c]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_work]}
+  - {fact: apparent_temp_c, op: between, value: [32, 38]}
+guidance: >
+  Conditions are warm enough to need a work-rest pattern. Advise scheduled shade breaks, water
+  at regular intervals rather than on thirst, and pushing the heaviest tasks to the cooler ends
+  of the day. New or returning workers should be eased in over several days.

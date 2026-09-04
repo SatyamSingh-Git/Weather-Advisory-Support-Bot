@@ -1,0 +1,14 @@
+id: travel_rain_delay
+title: Rain-related travel disruption
+category: travel_commute
+severity: moderate
+priority: 12
+requires_facts: [precip_prob_pct]
+when:
+  - {fact: activity_category, op: includes_any, value: [travel_commute]}
+  - {fact: precip_prob_pct, op: gte, value: 70}
+guidance: >
+  Warn of likely delays. Advise leaving earlier than usual, checking the operator or airline for
+  alerts before departure, and allowing for slower road traffic and waterlogging on the usual
+  route. This is a disruption warning, not a danger warning, unless another policy applies on
+  top of it.

@@ -1,0 +1,13 @@
+id: pets_hot_ground
+title: Hot ground surfaces for pets
+category: vulnerable_groups
+severity: moderate
+priority: 8
+requires_facts: [temp_c]
+when:
+  - {fact: audience, op: includes_any, value: [pets]}
+  - {fact: temp_c, op: gte, value: 32}
+guidance: >
+  Asphalt and paving can be far hotter than the air at this temperature and can burn paw pads.
+  Advise walking on grass, testing the surface with the back of a hand for five seconds, and
+  moving the walk to early morning or late evening. Keep it short and carry water.

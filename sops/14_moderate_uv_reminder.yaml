@@ -1,0 +1,12 @@
+id: moderate_uv_reminder
+title: Moderate UV reminder
+category: outdoor_exercise
+severity: info
+priority: 1
+requires_facts: [uv_index]
+when:
+  - {fact: is_outdoor_question, op: is_true, value: true}
+  - {fact: uv_index, op: between, value: [6, 7.9]}
+guidance: >
+  UV is elevated but not extreme. No need to change the plan. Mention sunscreen, a hat, and
+  shade during the middle of the day as a routine precaution, and keep the tone light.

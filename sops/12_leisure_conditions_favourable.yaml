@@ -1,0 +1,15 @@
+id: leisure_conditions_favourable
+title: Pleasant conditions for casual outdoor plans
+category: leisure_social
+severity: info
+priority: 2
+requires_facts: [comfort_score]
+when:
+  - {fact: activity_category, op: includes_any, value: [leisure_social]}
+  - {fact: comfort_score, op: gte, value: 72}
+  - {fact: precip_prob_pct, op: lte, value: 25}
+guidance: >
+  Conditions in this window are favourable for a casual outdoor plan. Confirm that it looks
+  good, state the actual numbers so the user can judge for themselves, and add only ordinary
+  practical notes: shade, water, and a look at the sky before committing to a long stay. Do not
+  add safety warnings that the numbers do not support.
