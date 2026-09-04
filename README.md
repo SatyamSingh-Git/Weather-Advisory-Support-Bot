@@ -427,6 +427,23 @@ breaking &mdash; worth knowing before trusting a green suite.
 connect this repo**, accept the blueprint, and set `OPENROUTER_API_KEY` in the dashboard (never in
 the repo). `/health` is the health-check path and returns the number of policies loaded.
 
+### Oracle Cloud Always Free (what the live URL runs on)
+
+`deploy/oracle-setup.sh` provisions a fresh Always Free VM end to end &mdash; Python, the service
+under systemd, and Caddy terminating TLS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SatyamSingh-Git/Weather-Advisory-Support-Bot/main/deploy/oracle-setup.sh   | bash -s -- sk-or-v1-YOUR_KEY
+```
+
+Then open ports 80 and 443 in the OCI console (VCN &rarr; Subnet &rarr; Security List &rarr; Ingress,
+`0.0.0.0/0` TCP). The script prints the HTTPS URL when it finishes.
+
+I moved off free PaaS hosting for one specific reason, covered below: **Always Free gives the
+instance its own public IPv4**, so Open-Meteo's per-IP quota belongs to this app rather than being
+shared with every other tenant behind the same NAT. The certificate comes from Let's Encrypt via a
+`nip.io` hostname, since no CA will issue one for a bare IP address.
+
 ### The shared-IP rate limit, and what it forced
 
 The first deploy failed on every question with `HTTP 429, Daily API request limit exceeded`. Not our
