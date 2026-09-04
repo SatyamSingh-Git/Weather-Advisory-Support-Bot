@@ -63,6 +63,26 @@ The left pane is the chat. The right pane is why it said that:
 
 ---
 
+## Deploying
+
+`render.yaml` and a `Dockerfile` are both in the repo. On Render: **New → Web Service → connect this
+repo**, accept the blueprint, and set `OPENROUTER_API_KEY` in the dashboard (never in the repo).
+`/health` is the health-check path and returns the number of policies loaded.
+
+Two things about the hosted instance that are not true locally, worth knowing before you judge it:
+
+- **The free tier sleeps.** After ~15 minutes idle the service spins down, and the next request
+  takes roughly a minute while it wakes. A first request that seems to hang is almost always this,
+  not the graph. Hit `/health` once to wake it before trying the chat.
+- **The filesystem is ephemeral.** Policies are files, which is the right call for a set humans
+  edit and review — but on a hosted instance a policy added through the Library tab lives only
+  until the next restart or deploy. It is genuinely live for that session, which is enough to
+  demonstrate hot-reload, but the durable way to add a policy is a commit to `sops/`. Making
+  browser edits persist means a database or a commit-back, and both change what a policy *is*:
+  a reviewable file in git. I would rather keep the file and accept the limit on the demo.
+
+---
+
 ## Architecture
 
 ```
