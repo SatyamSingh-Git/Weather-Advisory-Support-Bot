@@ -23,6 +23,7 @@
   <img alt="Python 3.12" src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" />
   <img alt="LangGraph" src="https://img.shields.io/badge/LangGraph-11%20nodes%20%C2%B7%206%20branches-1C3C3C" />
   <img alt="Policies" src="https://img.shields.io/badge/policies-15%20YAML%20files-4B8BBE" />
+  <a href="https://github.com/SatyamSingh-Git/Weather-Advisory-Support-Bot/actions"><img alt="checks" src="https://github.com/SatyamSingh-Git/Weather-Advisory-Support-Bot/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="Evals" src="https://img.shields.io/badge/evals-16%2F16%20passing-3fb950" />
   <img alt="Data" src="https://img.shields.io/badge/data-Open--Meteo-f0883e" />
 </p>
@@ -355,7 +356,12 @@ asked.
 ```bash
 python -m evals.run_evals        # prints a table, writes evals/report.html
 pytest evals -v                  # same cases as tests
+pytest evals/test_engine.py      # 34 tests that need no API key
 ```
+
+The full suite drives the graph and so needs a model key. `test_engine.py` covers the parts that
+never call one &mdash; the condition engine, window arithmetic, ranking, grounding and the lint,
+which is most of the logic this system is trusted for &mdash; and that is what CI runs on every push.
 
 The suite is deliberately in **two layers**, because live weather does not hold still:
 
@@ -576,7 +582,10 @@ two jobs.
 
 ### `sops/` &mdash; the policy set
 
-15 files, one policy each, `01_severe_rain_system.yaml` through `15_conditions_within_normal_limits.yaml`.
+15 files, one policy each, `01_severe_rain_system.yaml` through `15_conditions_within_normal_limits.yaml`,
+plus **[`sops/README.md`](sops/README.md) &mdash; a guide for whoever maintains the rules**, written for
+someone who cannot read Python: every available reading with its units, the operators, how conflicts
+resolve, what the lint catches, and what still needs an engineer.
 Six categories, all five severities, two `override: true`. This directory is the product; `app/` is
 the machine that runs it.
 

@@ -1,0 +1,45 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # The full eval suite drives the graph and needs a model key, so it cannot run here. These are
+      # the parts that never call one: the condition engine, window arithmetic, ranking, grounding
+      # and the policy lint - which is most of the logic this system is actually trusted for.
+      - name: Engine and policy tests
+        run: python -m pytest evals/test_engine.py -v
+
+      - name: Every shipped policy passes its own lint
+        run: |
+          python - <<'PY'
+          from app.sops import lint_all, load_sops
+          problems = lint_all()
+          for sop_id, items in problems.items():
+              for item in items:
+                  print(f"::error::{sop_id}: {item}")
+          print(f"{len(load_sops())} policies checked")
+          raise SystemExit(1 if problems else 0)
+          PY
+
+      - name: The app imports and the graph compiles
+        run: |
+          python -c "
+          from app.graph import GRAPH
+          nodes = [n for n in GRAPH.get_graph().nodes if not n.startswith('__')]
+          branches = {e.source for e in GRAPH.get_graph().edges if e.conditional}
+          print(f'{len(nodes)} nodes, {len(branches)} conditional branch points')
+          assert len(nodes) == 11
+          "
