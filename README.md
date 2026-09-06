@@ -559,20 +559,45 @@ Every ask in the brief, and where it lives.
 
 ## Repo map
 
-```
-app/
-  graph.py        the LangGraph agent: nodes, branches, session memory
-  sops.py         policy loading, the condition engine, ranking, lint
-  facts.py        Open-Meteo payload -> fact table, provenance, comfort_score
-  weather.py      the only place weather numbers enter the system
-  llm.py          the two model calls, and the enum that bounds them
-  grounding.py    provenance + attribution checks on the generated reply
-  server.py       FastAPI: chat over SSE, policy editor, static frontend
-sops/             15 policies, one YAML file each
-evals/
-  suite.py        16 cases with their pass criteria
-  fixtures.py     recorded Open-Meteo payloads, so assertions stay true
-  run_evals.py    console table + HTML report
-  report.html     a recorded run
-web/index.html    the console: chat, graph trace, policy inspector, charts
-```
+Roughly 1,700 lines of Python and one 1,100-line HTML file. Nothing is generated, and no file does
+two jobs.
+
+### `app/` &mdash; the agent
+
+| File | Lines | Responsible for |
+| --- | ---: | --- |
+| [`graph.py`](app/graph.py) | 430 | The LangGraph agent. `BotState`, the eleven node functions, the six `route_after_*` predicates that form the branch points, and `build_graph()` which wires them. `finalize` is the single place session memory is written and citations are assembled, so no other node can quietly change what gets cited. `ask()` and `ask_streaming()` are the only entry points the server uses. |
+| [`sops.py`](app/sops.py) | 196 | Everything about policies except their content. `load_sops()` reads and validates the YAML, re-reading only when a file's mtime changes. `evaluate()` walks one policy's condition tree and keeps the pass/fail of *every* leaf, which is what the inspector renders. `rank()` is the four-line conflict resolution. `lint()` catches the rules that would silently never fire. |
+| [`facts.py`](app/facts.py) | 235 | Turns a raw Open-Meteo payload into the flat fact table conditions are evaluated against. Owns the window arithmetic (`_window_indices`, including rolling a window that has already passed forward to tomorrow), the provenance string for every fact, the derived `comfort_score`, `labelled()` for the composer's self-describing table, and `timeline()` for the forecast charts. `POLICY_FACTS` here is the single vocabulary the lint checks against. |
+| [`weather.py`](app/weather.py) | 179 | The only place weather numbers enter the system. Geocoding with compound-name fallback and same-name disambiguation, the forecast call, the 15-minute cache, and `_get()` &mdash; one request path that retries once on 429/5xx and reports what the API actually said. Raises `WeatherUnavailable` rather than ever returning partial data. |
+| [`llm.py`](app/llm.py) | 205 | The two model calls and the enum that bounds them. `extract_intent()` classifies the question and drops anything outside `ACTIVITY_CATEGORIES` / `AUDIENCES` / `TIME_WINDOWS`; `compose_answer()` returns prose plus its `numbers_used` attributions. `_chat()` disables reasoning and requires JSON-capable providers, because OpenRouter serves one model id from many backends. |
+| [`grounding.py`](app/grounding.py) | 84 | The check behind the prompt's promise. Layer one: every number in the reply traces to the payload, a cited threshold, or policy prose. Layer two: every number the model attributed to a reading actually equals that reading. Smallest file here and the one the product's core claim rests on. |
+| [`server.py`](app/server.py) | 226 | FastAPI. Chat over SSE (`/api/chat/stream`), the policy editor (`GET/PUT/DELETE /api/sops`, validated and linted before anything is written), `/api/diagnostics` for debugging a deployed instance, `/health`, and the static frontend. Also the startup cache warm, on a thread so it never gates readiness. |
+
+### `sops/` &mdash; the policy set
+
+15 files, one policy each, `01_severe_rain_system.yaml` through `15_conditions_within_normal_limits.yaml`.
+Six categories, all five severities, two `override: true`. This directory is the product; `app/` is
+the machine that runs it.
+
+### `evals/` &mdash; the suite
+
+| File | Lines | Responsible for |
+| --- | ---: | --- |
+| [`suite.py`](evals/suite.py) | 462 | The 16 cases, each with its `checks` and `passes_when` stated as data rather than buried in an assertion. Also the context managers that make failure testable: `frozen()` serves a recorded payload, `broken_weather()` raises, `lying_composer()` puts words in the model's mouth, `forgetful_extractor()` makes it ignore the history. |
+| [`fixtures.py`](evals/fixtures.py) | 103 | Eight recorded Open-Meteo scenarios built from one `payload()` generator, so "this must cite `high_wind_two_wheeler`" is as true in February as in July. |
+| [`run_evals.py`](evals/run_evals.py) | 108 | Runs them, prints a table, writes `report.html`. |
+| [`test_suite.py`](evals/test_suite.py) | 11 | The same cases under pytest, so the suite runs in CI. |
+| [`report.html`](evals/report.html) | &mdash; | A recorded run, committed so results are readable without an API key. |
+
+### `web/index.html` &mdash; the console
+
+1,109 lines, no framework, no build step, no dependencies. The chat, the graph diagram that lights up
+as the run streams, the policy inspector with per-condition results, the forecast charts with policy
+thresholds drawn on them, and the in-browser policy editor. One file because a reviewer should be
+able to clone and run.
+
+### Elsewhere
+
+`deploy/oracle-setup.sh` provisions a fresh Always Free VM end to end. `Dockerfile` and `render.yaml`
+are kept for anyone who prefers a PaaS. `docs/` holds the screenshots.
