@@ -1,3 +1,8 @@
+# Kept as a PaaS alternative, with a caveat learned the hard way: Open-Meteo meters its free
+# tier per IP per day, and a free-tier host shares an egress IP with other tenants. This
+# deployment returned HTTP 429 on every request while the identical code worked elsewhere.
+# The app caches and degrades to a recent reading, but a shared IP can still be spent before
+# the first request. A host with its own IP avoids it entirely - see deploy/oracle-setup.sh.
 services:
   - type: web
     name: weather-advisory-bot

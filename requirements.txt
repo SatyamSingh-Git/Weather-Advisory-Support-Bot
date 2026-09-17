@@ -1,6 +1,9 @@
 langgraph==0.3.29
 langgraph-checkpoint==2.0.24
 fastapi==0.115.12
+# imported directly by app/sops.py and app/weather.py, so pinned here rather than
+# inherited from whatever fastapi happens to require
+pydantic==2.13.4
 uvicorn[standard]==0.34.0
 httpx==0.28.1
 openai==2.15.0

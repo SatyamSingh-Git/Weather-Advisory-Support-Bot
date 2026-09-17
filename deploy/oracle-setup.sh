@@ -31,14 +31,22 @@ curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt \
   | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
 sudo apt-get update -qq && sudo apt-get install -y -qq caddy
 
-echo "==> Fetching the app"
-sudo rm -rf "$APP_DIR"
-sudo git clone --depth 1 -q "$REPO" "$APP_DIR"
-sudo python3 -m venv "$APP_DIR/.venv"
-sudo "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
-sudo "$APP_DIR/.venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
+# A dedicated service account. It cannot read anything else on the box, which matters when the
+# instance is shared with something that holds credentials.
+sudo id weatherbot >/dev/null 2>&1 || sudo useradd --system --create-home --home-dir "$APP_DIR" --shell /usr/sbin/nologin weatherbot
+sudo chmod 755 "$APP_DIR"
 
-printf 'OPENROUTER_API_KEY=%s\nOPENROUTER_MODEL=%s\n' "$KEY" "$MODEL" | sudo tee "$APP_DIR/.env" >/dev/null
+echo "==> Fetching the app"
+sudo rm -rf "$APP_DIR/repo"
+sudo -u weatherbot git clone --depth 1 -q "$REPO" "$APP_DIR/repo"
+sudo -u weatherbot python3 -m venv "$APP_DIR/.venv"
+sudo -u weatherbot "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
+sudo -u weatherbot "$APP_DIR/.venv/bin/pip" install -q -r "$APP_DIR/repo/requirements.txt"
+
+printf 'OPENROUTER_API_KEY=%s
+OPENROUTER_MODEL=%s
+' "$KEY" "$MODEL" | sudo tee "$APP_DIR/.env" >/dev/null
+sudo chown weatherbot:weatherbot "$APP_DIR/.env"
 sudo chmod 600 "$APP_DIR/.env"
 
 echo "==> systemd service"
@@ -48,11 +56,20 @@ Description=Weather Advisory Support Bot
 After=network-online.target
 
 [Service]
-WorkingDirectory=$APP_DIR
+User=weatherbot
+Group=weatherbot
+WorkingDirectory=$APP_DIR/repo
 EnvironmentFile=$APP_DIR/.env
 ExecStart=$APP_DIR/.venv/bin/uvicorn app.server:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3
+# Give it nothing it does not need; sops/ is the only path it ever writes to.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$APP_DIR/repo/sops
+MemoryMax=320M
 
 [Install]
 WantedBy=multi-user.target

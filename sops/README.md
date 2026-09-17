@@ -98,6 +98,37 @@ otherwise make a rule quietly never fire:
 - an operator given the wrong shape of value
 - a missing verdict, or guidance too short to act on
 
+## A worked example: adding one from scratch
+
+Say we want the bot to warn about poor air quality for runners. Air quality is not a reading we
+collect, so pick something we do have &mdash; low visibility during exercise, which often travels
+with it. Create `16_low_visibility_exercise.yaml`:
+
+```yaml
+id: low_visibility_exercise
+title: Reduced visibility during outdoor exercise
+verdict: Move it indoors
+category: outdoor_exercise
+severity: moderate
+priority: 14
+requires_facts: [visibility_m]
+when:
+  - {fact: activity_category, op: includes_any, value: [outdoor_exercise]}
+  - {fact: visibility_m, op: lte, value: 2000}
+guidance: >
+  Visibility this low usually means haze, fog or smoke, and a runner or cyclist is both harder to
+  see and breathing more of it. Advise moving the session indoors, or shortening it and staying off
+  roads. Mention that drivers will see them later than usual.
+```
+
+That is the whole change. Ask a question about running in a hazy city and it fires on the next
+message &mdash; no restart, nothing in `app/` touched.
+
+Three things the loader will tell you if you get them wrong: an `id` with capitals or spaces is
+rejected (it is used as a citation), guidance under 40 characters is rejected as too short to act
+on, and `visibility_m` missing from `requires_facts` is flagged by the lint because the rule would
+then quietly stop matching wherever that reading is unavailable.
+
 ## When two policies both apply
 
 1. Anything marked `override: true` leads, regardless of severity. Use it only for situational risk
