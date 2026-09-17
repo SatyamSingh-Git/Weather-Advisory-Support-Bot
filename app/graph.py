@@ -22,10 +22,13 @@ Flow, with every branch that exists:
 """
 
 import time
-from typing import Annotated, TypedDict
+from typing import TYPE_CHECKING, Annotated, TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
 
 from . import grounding, llm, sops as policy, weather
 from .facts import build_facts, timeline
@@ -65,6 +68,7 @@ def _step(state, node, status, detail, started):
 
 
 def parse_request(state: BotState) -> dict:
+    """Read the question, and inherit anything this turn did not restate."""
     started = time.time()
     history = state.get("messages", [])
     question = state["question"]
@@ -106,6 +110,7 @@ def parse_request(state: BotState) -> dict:
 
 
 def resolve_location(state: BotState) -> dict:
+    """Turn a place name into coordinates, or take the failure branch. Never a guess."""
     started = time.time()
     query = state["intent"]["location"]
     if not query:
@@ -125,6 +130,7 @@ def resolve_location(state: BotState) -> dict:
 
 
 def fetch_weather(state: BotState) -> dict:
+    """The only node that reaches the outside world for numbers."""
     started = time.time()
     place = state["place"]
     try:
@@ -141,6 +147,7 @@ def fetch_weather(state: BotState) -> dict:
 
 
 def derive_facts(state: BotState) -> dict:
+    """Build the fact table for the window asked about, with a source recorded per fact."""
     started = time.time()
     intent = state["intent"]
     facts, provenance = build_facts(state["raw_weather"], intent["time_window"])
@@ -178,6 +185,7 @@ def match_policies(state: BotState) -> dict:
 
 
 def compose(state: BotState) -> dict:
+    """Word the policy that match_policies already chose. The model phrases, it does not decide."""
     started = time.time()
     try:
         answer, claims = llm.compose_answer(
@@ -192,6 +200,7 @@ def compose(state: BotState) -> dict:
 
 
 def verify_grounding(state: BotState) -> dict:
+    """Check the reply's numbers, and the model's own account of which reading each one is."""
     started = time.time()
     cited = [state["primary"], *state["secondary"]]
     ok, ungrounded = grounding.check(state["answer"], state["facts"], cited, state.get("claims"))
@@ -339,26 +348,33 @@ def route_after_parse(state: BotState) -> str:
 
 
 def route_after_location(state: BotState) -> str:
+    """An unresolvable place and an unreachable service take the same branch, by design."""
     return "honest_failure" if state.get("failure") else "fetch_weather"
 
 
 def route_after_weather(state: BotState) -> str:
+    """No data means no answer. There is no path from here to a composed reply."""
     return "honest_failure" if state.get("failure") else "derive_facts"
 
 
 def route_after_match(state: BotState) -> str:
+    """Nothing matched is a real outcome, not an error: it routes to an honest no-guidance reply."""
     return "compose_answer" if state.get("primary") else "no_policy_answer"
 
 
 def route_after_compose(state: BotState) -> str:
+    """We hold the policy and the readings, but cannot word them. Say that rather than improvise."""
     return "honest_failure" if state.get("failure") else "verify_grounding"
 
 
 def route_after_verify(state: BotState) -> str:
+    """A reply that fails the grounding check is replaced, never patched up and sent."""
     return "finalize" if state["grounded"] else "deterministic_answer"
 
 
-def build_graph():
+def build_graph() -> "CompiledStateGraph":
+    """Wire the nodes. Every conditional edge lists its destinations, so the branches are readable
+    here rather than hidden inside the predicates."""
     builder = StateGraph(BotState)
     builder.add_node("parse_request", parse_request)
     builder.add_node("resolve_location", resolve_location)
@@ -415,6 +431,7 @@ def _result(state: dict) -> dict:
 
 
 def ask(session_id: str, question: str) -> dict:
+    """One turn, synchronously. The evals use this."""
     config = {"configurable": {"thread_id": session_id}}
     return _result(GRAPH.invoke({"question": question}, config))
 

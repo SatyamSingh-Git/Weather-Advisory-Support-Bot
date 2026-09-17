@@ -7,8 +7,12 @@ Neither call chooses a policy, and neither call produces a weather number.
 
 import json
 import os
+from typing import TYPE_CHECKING
 
 from openai import OpenAI, OpenAIError
+
+if TYPE_CHECKING:
+    from .sops import Sop
 
 from .facts import labelled
 
@@ -38,7 +42,7 @@ def _model() -> str:
     return os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
 
 
-def _chat(messages, json_mode: bool, max_tokens: int, _retry: bool = False) -> str:
+def _chat(messages: list[dict], json_mode: bool, max_tokens: int, _retry: bool = False) -> str:
     """One model call, hardened against the two things that actually vary in production.
 
     OpenRouter load-balances a model id across many providers, so the same request can be served
@@ -64,7 +68,7 @@ def _chat(messages, json_mode: bool, max_tokens: int, _retry: bool = False) -> s
     return content.strip()
 
 
-def _transcript(history, limit):
+def _transcript(history: list[dict], limit: int) -> str:
     return "\n".join(f"{turn['role']}: {turn['content']}" for turn in history[-limit:])
 
 
@@ -92,7 +96,7 @@ Rules:
 Return only the JSON object."""
 
 
-def _window(value) -> str:
+def _window(value: object) -> str:
     """Map whatever the model called the time window onto our enum.
 
     Providers return "this evening", "tonight" or "right now" for the same thing. Rejecting those
@@ -105,7 +109,8 @@ def _window(value) -> str:
     return "now"
 
 
-def _coerce_list(value, allowed, default):
+def _coerce_list(value: object, allowed: list[str], default: list[str]) -> list[str]:
+    """Keep only values inside our enum. An unrecognised one is dropped, never passed through."""
     if not isinstance(value, list):
         return default
     kept = [v for v in value if v in allowed]
@@ -170,7 +175,9 @@ filed under the wrong reading. Numbers that come from the policy text itself (du
 go in `numbers_used`."""
 
 
-def compose_answer(message: str, facts: dict, primary, secondary: list, history: list[dict]) -> tuple[str, list]:
+def compose_answer(
+    message: str, facts: dict, primary: "Sop", secondary: list, history: list[dict]
+) -> tuple[str, list]:
     """Return the reply and the model's own attribution of every number in it."""
     also = "\n".join(f"- {s.title} ({s.severity}): {s.guidance.strip()}" for s in secondary)
     user = f"""Fact table (the only numbers you may use):

@@ -4,6 +4,8 @@ Every numeric fact here traces to a value the API actually returned. Nothing in 
 consults the model, and the model never writes into the table this module produces.
 """
 
+from collections.abc import Iterable
+
 WINDOW_HOURS = {
     "morning": (6, 11),
     "afternoon": (12, 16),
@@ -24,31 +26,31 @@ def _date(ts: str) -> str:
     return ts[:10]
 
 
-def _clean(values):
+def _clean(values: Iterable[float | None]) -> list[float]:
     return [v for v in values if v is not None]
 
 
-def _max(values):
+def _max(values: Iterable[float | None]) -> float | None:
     vals = _clean(values)
     return round(max(vals), 1) if vals else None
 
 
-def _min(values):
+def _min(values: Iterable[float | None]) -> float | None:
     vals = _clean(values)
     return round(min(vals), 1) if vals else None
 
 
-def _mean(values):
+def _mean(values: Iterable[float | None]) -> float | None:
     vals = _clean(values)
     return round(sum(vals) / len(vals), 1) if vals else None
 
 
-def _sum(values):
+def _sum(values: Iterable[float | None]) -> float | None:
     vals = _clean(values)
     return round(sum(vals), 1) if vals else None
 
 
-def _window_indices(times, now_index, window):
+def _window_indices(times: list[str], now_index: int, window: str) -> tuple[list[int], str]:
     """Hourly indices covering the requested window.
 
     A window that has already passed today rolls forward to tomorrow, so "what about this
@@ -62,7 +64,8 @@ def _window_indices(times, now_index, window):
     today = _date(times[now_index])
     target = days[days.index(today) + 1] if window == "tomorrow" else today
 
-    def pick(day):
+    def pick(day: str) -> list[int]:
+        """Indices of the hours on `day` that fall inside the window."""
         return [i for i, t in enumerate(times) if _date(t) == day and low <= _hour(t) <= high]
 
     idx = [i for i in pick(target) if i >= now_index]
@@ -74,7 +77,13 @@ def _window_indices(times, now_index, window):
     return [now_index], today
 
 
-def comfort_score(temp_c, precip_prob, wind_kmh, uv, humidity):
+def comfort_score(
+    temp_c: float | None,
+    precip_prob: float | None,
+    wind_kmh: float | None,
+    uv: float | None,
+    humidity: float | None,
+) -> float:
     """A deterministic 0-100 pleasantness score for questions with no natural threshold.
 
     Not a safety measure — it exists so that fuzzy SOPs ("is today nice for a picnic") still

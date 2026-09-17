@@ -18,6 +18,7 @@ REPORT = Path(__file__).resolve().parent / "report.html"
 
 
 def run(offline: bool) -> list[dict]:
+    """Run every case, catching a raise as a failure rather than stopping the suite on it."""
     rows = []
     for case in CASES:
         if offline and case.needs_network:
@@ -67,6 +68,7 @@ summary { cursor:pointer; color:#61708a; font-size:12px; }
 
 
 def write_report(rows: list[dict], path: Path = REPORT) -> Path:
+    """Write the run to HTML, so results are readable without an API key or a terminal."""
     tally = {status: sum(1 for r in rows if r["status"] == status) for status in ("pass", "fail", "skipped")}
     blocks = []
     for row in rows:

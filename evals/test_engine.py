@@ -14,6 +14,7 @@ from evals.fixtures import SCENARIOS
 
 
 def question_facts(payload, window="now", **overrides):
+    """A fact table as the graph would build it, with the question half filled in."""
     facts, _ = build_facts(payload, window)
     facts.update(activity_category=["outdoor_exercise"], audience=["general"],
                  is_outdoor_question=True, location="Testville")

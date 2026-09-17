@@ -7,5 +7,6 @@ from evals.suite import CASES
 
 @pytest.mark.parametrize("case", CASES, ids=[c.id for c in CASES])
 def test_case(case):
+    """Each case carries its own pass criteria, so the assertion message states it on failure."""
     outcome = case.run()
     assert outcome.passed, f"{case.passes_when} -- observed: {outcome.notes}"

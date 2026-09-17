@@ -1,6 +1,7 @@
 """Open-Meteo access. This module is the only place weather numbers enter the system."""
 
 import time
+from collections.abc import Iterator
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -51,6 +52,7 @@ class ForecastPayload(BaseModel):
     @field_validator("current")
     @classmethod
     def current_has_readings(cls, current: dict) -> dict:
+        """A response without these came back from a request that forgot its field list."""
         missing = {"time", "temperature_2m", "wind_speed_10m"} - current.keys()
         if missing:
             raise ValueError(f"missing {sorted(missing)}, was current= given a field list?")
@@ -59,6 +61,7 @@ class ForecastPayload(BaseModel):
     @field_validator("hourly")
     @classmethod
     def hourly_has_a_timeline(cls, hourly: dict) -> dict:
+        """Equal-length series matter: facts.py indexes them all by the same hour offset."""
         if not hourly.get("time"):
             raise ValueError("no hourly timeline returned")
         lengths = {len(v) for v in hourly.values() if isinstance(v, list)}
@@ -112,7 +115,7 @@ def _search(name: str) -> list:
     return _geocode_cache[key]
 
 
-def _attempts(name: str):
+def _attempts(name: str) -> Iterator[tuple[str, str | None]]:
     """The geocoder matches a single place name, so "Alipur, Delhi" finds nothing.
 
     Fall back to the leading part as the name and keep the rest as a region hint, which is also

@@ -60,6 +60,7 @@ def frozen(scenario: str, place: dict | None = None):
 
 @contextlib.contextmanager
 def broken_weather():
+    """Make the forecast call fail the way an outage does, without waiting for one."""
     real = weather.fetch_forecast
     weather.fetch_forecast = lambda lat, lon: (_ for _ in ()).throw(
         weather.WeatherUnavailable("weather service unreachable (ConnectTimeout)")
@@ -72,6 +73,7 @@ def broken_weather():
 
 @contextlib.contextmanager
 def lying_composer(text: str, claims: list | None = None):
+    """Put words in the model's mouth, so the checks after it can be tested directly."""
     real = llm.compose_answer
     llm.compose_answer = lambda *a, **k: (text, claims or [])
     try:
@@ -81,10 +83,12 @@ def lying_composer(text: str, claims: list | None = None):
 
 
 def session(name: str) -> str:
+    """A thread id per case, so no case inherits another's memory."""
     return f"eval-{name}"
 
 
 def primary_id(result: dict) -> str | None:
+    """The policy the answer was given under, which is what most cases assert on."""
     for citation in result["citations"]:
         if citation["role"] == "primary":
             return citation["id"]

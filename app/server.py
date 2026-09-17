@@ -3,6 +3,7 @@
 import json
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 import yaml
@@ -36,17 +37,18 @@ class SopWrite(BaseModel):
     body: str
 
 
-def _sse(event: str, data) -> str:
+def _sse(event: str, data: object) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
 @app.get("/health")
-def health():
+def health() -> dict:
+    """Liveness plus the policy count, which is what a deploy check should assert on."""
     return {"ok": True, "sops": len(policy.load_sops())}
 
 
 @app.get("/api/diagnostics")
-def diagnostics():
+def diagnostics() -> dict:
     """Call both upstreams and report exactly what came back.
 
     A deployed instance fails in ways a laptop never does - a different egress IP, a different
@@ -105,13 +107,15 @@ def diagnostics():
 
 
 @app.post("/api/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest) -> dict:
+    """One turn, start to finish. Used by the evals; the browser uses the streaming route."""
     return graph.ask(request.session_id, request.message)
 
 
 @app.get("/api/chat/stream")
-def chat_stream(session_id: str, message: str):
-    def events():
+def chat_stream(session_id: str, message: str) -> StreamingResponse:
+    """Emit each node as it finishes, then the finished result, so the UI can draw the run live."""
+    def events() -> Iterator[str]:
         try:
             for kind, payload in graph.ask_streaming(session_id, message):
                 yield _sse(kind, payload)
@@ -123,7 +127,8 @@ def chat_stream(session_id: str, message: str):
 
 
 @app.get("/api/sops")
-def list_sops():
+def list_sops() -> dict:
+    """Every policy with its raw YAML, so the browser editor round-trips the file itself."""
     loaded = {s.source_file: s for s in policy.load_sops()}
     return {
         "count": len(loaded),
@@ -145,7 +150,7 @@ def list_sops():
 
 
 @app.put("/api/sops")
-def write_sop(payload: SopWrite):
+def write_sop(payload: SopWrite) -> dict:
     """Validate first, write second. A malformed policy never reaches the running rule set."""
     if not SAFE_NAME.match(payload.filename):
         raise HTTPException(400, "filename must look like 15_my_policy.yaml")
@@ -177,7 +182,8 @@ def write_sop(payload: SopWrite):
 
 
 @app.delete("/api/sops/{filename}")
-def delete_sop(filename: str):
+def delete_sop(filename: str) -> dict:
+    """Remove a policy file. The next message reloads without it."""
     if not SAFE_NAME.match(filename):
         raise HTTPException(400, "bad filename")
     target = policy.SOP_DIR / filename
@@ -188,7 +194,8 @@ def delete_sop(filename: str):
 
 
 @app.get("/api/graph")
-def graph_shape():
+def graph_shape() -> dict:
+    """The compiled graph's nodes and edges, so the diagram cannot drift from the real thing."""
     compiled = graph.GRAPH.get_graph()
     return {
         "nodes": [n for n in compiled.nodes if not n.startswith("__")],
@@ -200,7 +207,7 @@ def graph_shape():
 
 
 @app.get("/")
-def index():
+def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
@@ -208,7 +215,7 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 
 @app.on_event("startup")
-def warm_cache():
+def warm_cache() -> None:
     """Prefetch the demo cities in the background so the cache holds real readings from the outset.
 
     On a thread, not inline: this is six network calls, and a restart should not leave the service
@@ -219,7 +226,7 @@ def warm_cache():
 
     from . import weather
 
-    def prefetch():
+    def prefetch() -> None:
         for city in ("Bhopal", "Chennai", "Pune"):
             try:
                 place = weather.geocode(city)

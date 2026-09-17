@@ -21,7 +21,7 @@ def _numbers_in(text: str) -> list[float]:
     return [float(m) for m in NUMBER.findall(text)]
 
 
-def _threshold_values(conditions) -> list[float]:
+def _threshold_values(conditions: list) -> list[float]:
     found = []
     for node in conditions:
         if "any_of" in node or "all_of" in node:
@@ -34,7 +34,7 @@ def _threshold_values(conditions) -> list[float]:
     return found
 
 
-def _numeric(value) -> float | None:
+def _numeric(value: object) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 

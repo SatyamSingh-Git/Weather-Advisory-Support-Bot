@@ -41,11 +41,13 @@ class Sop(BaseModel):
     @field_validator("when")
     @classmethod
     def conditions_are_wellformed(cls, conditions: list) -> list:
+        """Reject an unknown operator at load, not silently at match time."""
         _check_conditions(conditions)
         return conditions
 
     @property
     def severity_rank(self) -> int:
+        """Position in SEVERITY_ORDER, which is what conflict resolution sorts on."""
         return SEVERITY_ORDER.index(self.severity)
 
 
@@ -75,7 +77,7 @@ def _validate(raw: dict, path: Path) -> Sop:
         raise SopError(f"{path.name}: {problems}") from exc
 
 
-def _check_conditions(conditions):
+def _check_conditions(conditions: list) -> None:
     for node in conditions:
         if not isinstance(node, dict):
             raise ValueError(f"each condition must be a mapping, got {type(node).__name__}")
@@ -132,6 +134,8 @@ def evaluate(sop: Sop, facts: dict) -> dict:
 
 
 def match_all(facts: dict, sops: list[Sop] | None = None) -> list[dict]:
+    """Evaluate every policy against the facts. Nothing is short-circuited: the inspector shows
+    the rejected ones too, and an auditor needs to see what did not fire as much as what did."""
     return [evaluate(sop, facts) for sop in (sops if sops is not None else load_sops())]
 
 
@@ -200,4 +204,5 @@ def lint(sop: Sop) -> list[str]:
 
 
 def lint_all(sops: list[Sop] | None = None) -> dict[str, list[str]]:
+    """Every policy with a problem, keyed by id. Empty means the whole set is sound."""
     return {s.id: problems for s in (sops if sops is not None else load_sops()) if (problems := lint(s))}
