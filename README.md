@@ -95,6 +95,13 @@ readable without an API key.
 
 ---
 
+## The interface
+
+Styled after MediBuddy's own product surface &mdash; light, rounded, one confident blue, a rounded
+geometric sans &mdash; because a safety assistant users would actually meet inside MediBuddy should
+look like it belongs there. The severity system is the one deliberate addition: a verdict needs to
+be readable at a glance before anything else on the card.
+
 ## What you can click
 
 The left pane is the chat. The right pane is *why it said that*.
