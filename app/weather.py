@@ -3,6 +3,7 @@
 import time
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -31,6 +32,39 @@ STALE_LIMIT_SECONDS = 3 * 60 * 60
 
 _forecast_cache: dict[tuple, tuple[float, dict]] = {}
 _geocode_cache: dict[str, list] = {}
+
+
+class ForecastPayload(BaseModel):
+    """What a usable Open-Meteo response must contain.
+
+    The API answers a request with no field list using 200 and a body of metadata with no values,
+    which is the documented way to be fooled by it. Validating here means the graph either has real
+    readings or takes the honest-failure branch, with no third state where it half-has them.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    current: dict
+    hourly: dict
+    daily: dict = Field(default_factory=dict)
+
+    @field_validator("current")
+    @classmethod
+    def current_has_readings(cls, current: dict) -> dict:
+        missing = {"time", "temperature_2m", "wind_speed_10m"} - current.keys()
+        if missing:
+            raise ValueError(f"missing {sorted(missing)}, was current= given a field list?")
+        return current
+
+    @field_validator("hourly")
+    @classmethod
+    def hourly_has_a_timeline(cls, hourly: dict) -> dict:
+        if not hourly.get("time"):
+            raise ValueError("no hourly timeline returned")
+        lengths = {len(v) for v in hourly.values() if isinstance(v, list)}
+        if len(lengths) > 1:
+            raise ValueError(f"hourly series have mismatched lengths {sorted(lengths)}")
+        return hourly
 
 
 class WeatherUnavailable(Exception):
@@ -166,8 +200,11 @@ def fetch_forecast(latitude: float, longitude: float) -> dict:
             return _with_age(cached)
         raise
 
-    if not payload.get("current") or not payload.get("hourly", {}).get("time"):
-        raise WeatherUnavailable("weather service returned metadata with no values")
+    try:
+        ForecastPayload(**payload)
+    except ValidationError as exc:
+        problems = "; ".join(f"{exc.errors()[0]['loc'][0]}: {e['msg']}" for e in exc.errors()[:2])
+        raise WeatherUnavailable(f"weather service returned an unusable payload ({problems})") from exc
     _forecast_cache[key] = (time.time(), payload)
     return _with_age(_forecast_cache[key])
 

@@ -5,10 +5,11 @@ changing a policy never touches this file, the weather client, or the graph.
 """
 
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import yaml
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 SOP_DIR = Path(os.getenv("SOP_DIR", Path(__file__).resolve().parent.parent / "sops"))
 SEVERITY_ORDER = ["info", "low", "moderate", "high", "critical"]
@@ -18,21 +19,30 @@ class SopError(ValueError):
     """A policy file is malformed. Surfaced to whoever edited it, never swallowed."""
 
 
-@dataclass
-class Sop:
-    id: str
-    title: str
-    category: str
-    severity: str
-    guidance: str
+class Sop(BaseModel):
+    """A policy, validated on load. A file that does not satisfy this never enters the rule set."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=3, pattern=r"^[a-z][a-z0-9_]*$")
+    title: str = Field(min_length=3)
+    category: str = Field(min_length=2)
+    severity: Literal["info", "low", "moderate", "high", "critical"]
+    guidance: str = Field(min_length=40)
     when: list
     # The decision itself, in the policy author's words. The model may phrase the explanation but
     # never the call, so this is data like every other part of a rule.
-    verdict: str = ""
-    requires_facts: list = field(default_factory=list)
+    verdict: str = Field(default="", max_length=60)
+    requires_facts: list[str] = Field(default_factory=list)
     priority: int = 0
     override: bool = False
     source_file: str = ""
+
+    @field_validator("when")
+    @classmethod
+    def conditions_are_wellformed(cls, conditions: list) -> list:
+        _check_conditions(conditions)
+        return conditions
 
     @property
     def severity_rank(self) -> int:
@@ -52,30 +62,27 @@ OPS = {
     "is_true": lambda a, b: bool(a) is bool(b),
 }
 
-REQUIRED_KEYS = {"id", "title", "category", "severity", "guidance", "when"}
-
-
 def _validate(raw: dict, path: Path) -> Sop:
-    missing = REQUIRED_KEYS - raw.keys()
-    if missing:
-        raise SopError(f"{path.name}: missing {sorted(missing)}")
-    if raw["severity"] not in SEVERITY_ORDER:
-        raise SopError(f"{path.name}: severity must be one of {SEVERITY_ORDER}")
-    known = {f.name for f in Sop.__dataclass_fields__.values()} - {"source_file"}
-    unknown = raw.keys() - known
-    if unknown:
-        raise SopError(f"{path.name}: unknown keys {sorted(unknown)}")
-    sop = Sop(**raw, source_file=path.name)
-    _check_conditions(sop.when, path)
-    return sop
+    """Pydantic does the schema; this turns its report into one line naming the offending file."""
+    if not isinstance(raw, dict):
+        raise SopError(f"{path.name}: a policy file must be a YAML mapping")
+    try:
+        return Sop(**raw, source_file=path.name)
+    except ValidationError as exc:
+        problems = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc']) or 'file'}: {e['msg']}" for e in exc.errors()
+        )
+        raise SopError(f"{path.name}: {problems}") from exc
 
 
-def _check_conditions(conditions, path):
+def _check_conditions(conditions):
     for node in conditions:
+        if not isinstance(node, dict):
+            raise ValueError(f"each condition must be a mapping, got {type(node).__name__}")
         if "any_of" in node or "all_of" in node:
-            _check_conditions(node.get("any_of") or node["all_of"], path)
+            _check_conditions(node.get("any_of") or node["all_of"])
         elif node.get("op") not in OPS:
-            raise SopError(f"{path.name}: unknown op {node.get('op')!r}, expected one of {sorted(OPS)}")
+            raise ValueError(f"unknown op {node.get('op')!r}, expected one of {sorted(OPS)}")
 
 
 _cache: dict = {"stamp": None, "sops": []}

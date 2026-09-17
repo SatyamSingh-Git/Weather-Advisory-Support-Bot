@@ -38,7 +38,7 @@ def test_operators(op, actual, expected, want):
 
 def test_missing_fact_never_matches_on_a_guess():
     """A reading we do not have must make the condition false, not raise and not be assumed."""
-    sop = Sop(id="t", title="t", category="c", severity="high", guidance="x" * 50,
+    sop = Sop(id="test_rule", title="Test rule", category="testing", severity="high", guidance="x" * 50, verdict="Test",
               when=[{"fact": "gust_kmh", "op": "gte", "value": 50}], requires_facts=["gust_kmh"])
     result = evaluate(sop, {"gust_kmh": None})
     assert result["matched"] is False
@@ -46,7 +46,7 @@ def test_missing_fact_never_matches_on_a_guess():
 
 
 def test_any_of_needs_only_one_branch():
-    sop = Sop(id="t", title="t", category="c", severity="high", guidance="x" * 50,
+    sop = Sop(id="test_rule", title="Test rule", category="testing", severity="high", guidance="x" * 50, verdict="Test",
               when=[{"any_of": [{"fact": "a", "op": "gte", "value": 10},
                                 {"fact": "b", "op": "gte", "value": 10}]}])
     assert evaluate(sop, {"a": 1, "b": 99})["matched"] is True
@@ -139,13 +139,13 @@ def test_policy_set_meets_the_shape_the_brief_asks_for():
 
 
 def test_lint_catches_a_fact_that_does_not_exist():
-    broken = Sop(id="t", title="t", category="c", severity="low", guidance="x" * 50,
+    broken = Sop(id="test_rule", title="Test rule", category="testing", severity="low", guidance="x" * 50,
                  when=[{"fact": "uv_indx", "op": "gte", "value": 3}])
     assert any("unknown fact" in p for p in lint(broken))
 
 
 def test_lint_catches_a_hard_requirement_that_was_not_declared():
-    broken = Sop(id="t", title="t", category="c", severity="low", guidance="x" * 50, verdict="Go",
+    broken = Sop(id="test_rule", title="Test rule", category="testing", severity="low", guidance="x" * 50, verdict="Go",
                  when=[{"fact": "uv_index", "op": "gte", "value": 3}])
     assert any("requires_facts" in p for p in lint(broken))
 
@@ -155,3 +155,45 @@ def test_every_policy_condition_uses_a_known_fact():
         for problem in lint(sop):
             assert "unknown fact" not in problem
     assert "comfort_score" in POLICY_FACTS
+
+
+# --- the schema itself, which is what stops a bad file entering the rule set -------------------
+
+@pytest.mark.parametrize("bad,because", [
+    ({"severity": "apocalyptic"}, "severity outside the allowed set"),
+    ({"id": "Has Capitals And Spaces"}, "id is used as a citation, so it is constrained"),
+    ({"guidance": "be careful"}, "guidance too short to be actionable advice"),
+    ({"when": [{"fact": "uv_index", "op": "exceeds", "value": 8}]}, "unknown operator"),
+    ({"cite_as": "SOP-1"}, "unknown key, most likely a typo for an existing one"),
+])
+def test_a_malformed_policy_is_rejected_with_the_reason(bad, because):
+    from pydantic import ValidationError
+    from app.sops import Sop
+    good = dict(id="test_rule", title="Test rule", category="testing", severity="low",
+                verdict="Go", guidance="x" * 50, when=[{"fact": "uv_index", "op": "gte", "value": 8}])
+    with pytest.raises(ValidationError):
+        Sop(**{**good, **bad})
+
+
+def test_a_bad_file_names_itself(tmp_path):
+    """The app refuses to start on a malformed policy, and the message says which file."""
+    import os
+    from app import sops as policy
+    original = policy.SOP_DIR
+    (tmp_path / "77_wrong.yaml").write_text("id: x\ntitle: y\n", encoding="utf-8")
+    policy.SOP_DIR = tmp_path
+    try:
+        with pytest.raises(policy.SopError) as caught:
+            policy.load_sops(force=True)
+        assert "77_wrong.yaml" in str(caught.value)
+    finally:
+        policy.SOP_DIR = original
+        policy.load_sops(force=True)
+
+
+def test_an_unusable_weather_payload_is_rejected_before_it_is_used():
+    """Open-Meteo answers a request with no field list using 200 and no readings."""
+    from pydantic import ValidationError
+    from app.weather import ForecastPayload
+    with pytest.raises(ValidationError):
+        ForecastPayload(current={"time": "2026-09-17T10:00"}, hourly={"time": ["2026-09-17T10:00"]})

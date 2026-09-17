@@ -16,6 +16,10 @@ from . import graph, sops as policy
 
 load_dotenv()
 
+# Validate the whole policy set at import, which is what uvicorn does at boot. A malformed file
+# refuses the start and names itself, rather than surfacing as a 500 on somebody's first question.
+policy.load_sops(force=True)
+
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+\.yaml$")
 
