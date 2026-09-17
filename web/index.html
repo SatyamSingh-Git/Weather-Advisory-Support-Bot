@@ -75,7 +75,7 @@ header {
 }
 .ghost:hover { color: var(--brand); border-color: #bcd6fa; background: var(--brand-wash); }
 
-.body { display: grid; grid-template-columns: minmax(0, 1fr) 470px; min-height: 0; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr) 424px; min-height: 0; }
 .chat { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
 .thread { overflow-y: auto; padding: 30px 32px 10px; scroll-behavior: smooth; }
 .turn { max-width: 780px; margin: 0 auto 24px; animation: rise 300ms cubic-bezier(.2,.7,.3,1) both; }
@@ -168,14 +168,14 @@ textarea::placeholder { color: var(--dim); }
 .suggestions button:hover { color: var(--brand); border-color: #bcd6fa; background: var(--brand-wash); }
 
 aside { display: grid; grid-template-rows: auto 1fr; min-height: 0; background: var(--surface); box-shadow: -2px 0 14px rgba(22,36,63,.04); }
-.tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .tabs button {
-  border: 0; background: transparent; color: var(--dim); padding: 18px 13px 14px;
+  flex: 1; border: 0; background: transparent; color: var(--dim); padding: 18px 6px 14px;
   border-bottom: 3px solid transparent; font-size: 13.5px; font-weight: 500; transition: 140ms;
 }
 .tabs button:hover { color: var(--muted); }
 .tabs button[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
-.panel { overflow-y: auto; padding: 20px; }
+.panel { overflow-y: auto; padding: 20px 16px; }
 .panel[hidden] { display: none; }
 .section-title {
   font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
